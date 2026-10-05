@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Veritas Lens — On-device pattern recognition</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="site-header">
+<div class="brand"><img src="favicon.svg" alt="" width="34" height="34"><span>Veritas <em>Lens</em></span></div>
+<div id="theme-switch" role="group" aria-label="Theme">
+<button data-theme="system" class="active">System</button><button data-theme="light">Light</button><button data-theme="dark">Dark</button>
+</div>
+</header>
+<p class="tag">Pattern recognition · 100% on-device · nothing uploaded</p>
+<nav id="mode-tabs">
+<button class="tab active" data-mode="media">Files · Forensics</button>
+<button class="tab" data-mode="text">Text → Table</button>
+<button class="tab" data-mode="refs">References</button>
+</nav>
+<main>
+<section id="panel-media" class="panel active">
+<aside class="note"><b>Notes</b><ul>
+<li><b>Can read:</b> C2PA Content Credentials (ChatGPT/DALL·E/Sora, Adobe Firefly, Microsoft, Google), IPTC <code>trainedAlgorithmicMedia</code>, generator text in PNG files (Stable Diffusion, ComfyUI), EXIF, XMP and ID3 tags.</li>
+<li><b>Cannot read:</b> Google SynthID and other invisible watermarks. Only the vendor can decode them.</li>
+<li>C2PA signatures are detected and named, not verified.</li>
+<li>Screenshots, re-saves and messaging apps strip metadata and weaken pixel traces, so reliability goes down.</li>
+<li>Video confidence is capped at 45% and audio at 60%, unless a provenance tag is found.</li></ul></aside>
+<label class="drop" id="drop-zone"><input type="file" id="media-input" multiple hidden><span>Drop or choose files: images · videos · audio · text</span></label>
+<p id="media-progress" class="progress"></p>
+<section id="batch-dash" class="card dash" hidden>
+<div id="dash-stats"></div>
+<div id="verdict-chips" class="chips"></div>
+<div class="toolbar">
+<input id="batch-search" type="search" placeholder="Search filename" aria-label="Search filename">
+<select id="type-filter" aria-label="Type"><option value="all">All types</option><option value="Image">Images</option><option value="Video">Videos</option><option value="Audio">Audio</option><option value="Unreadable">Unreadable</option></select>
+<select id="sort-by" aria-label="Sort"><option value="order">Upload order</option><option value="high">Highest AI score</option><option value="low">Lowest AI score</option><option value="rel">Most reliable</option><option value="type">By type</option><option value="name">Name A–Z</option></select>
+<button id="expand-all" class="btn ghost sm">Expand</button><button id="collapse-all" class="btn ghost sm">Collapse</button><button id="batch-csv" class="btn ghost sm">CSV</button><button id="batch-clear" class="btn ghost sm">Clear</button>
+</div>
+<p id="dash-count" class="tstat"></p>
+</section>
+<div id="media-out"></div>
+</section>
+<section id="panel-text" class="panel">
+<aside class="note"><b>Notes</b><ul>
+<li>Recognizes amounts, quantities with units, percentages, dates, times, emails, URLs, phone numbers, IP addresses, IDs, hashtags and mentions.</li>
+<li>Groups lines that share the same shape into tables. Also handles delimited tables and repeating key:value records.</li>
+<li>Junk is removed automatically: HTML, dividers, duplicates, boilerplate like "Sent from my…" or "Unsubscribe", and invisible characters. Everything removed is listed with the reason.</li>
+<li>Rule-based, with no AI model, so prose with unusual formatting stays as plain text.</li></ul></aside>
+<textarea id="text-input" placeholder="Paste any messy text: invoices, logs, specs, chats, lists…"></textarea>
+<div class="row"><button id="text-run" class="btn">Extract</button><button id="text-sample" class="btn ghost">Try sample</button></div>
+<div id="text-out"></div>
+</section>
+<section id="panel-refs" class="panel">
+<aside class="note"><b>Notes</b><ul><li>These are the sources behind each check. The weights are heuristics drawn from them, not trained values.</li><li>Every link opens the original paper or standard.</li></ul></aside>
+<div id="refs-out"></div>
+</section>
+</main>
+<footer>Veritas Lens · all processing runs locally in your browser</footer>
+<script src="js/app.js"></script>
+<script src="js/text.js"></script>
+</body>
+</html>
