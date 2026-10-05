@@ -18,7 +18,7 @@
 <p class="tag">Pattern recognition · 100% on-device · nothing uploaded</p>
 <nav id="mode-tabs">
 <button class="tab active" data-mode="media">Files · Forensics</button>
-<button class="tab" data-mode="text">Text → Table</button>
+<button class="tab" data-mode="text">Text · Writing</button>
 <button class="tab" data-mode="refs">References</button>
 </nav>
 <main>
@@ -26,7 +26,7 @@
 <aside class="note"><b>Notes</b><ul>
 <li><b>Can read:</b> C2PA Content Credentials (ChatGPT/DALL·E/Sora, Adobe Firefly, Microsoft, Google), IPTC <code>trainedAlgorithmicMedia</code>, generator text in PNG files (Stable Diffusion, ComfyUI), EXIF, XMP and ID3 tags.</li>
 <li><b>Cannot read:</b> Google SynthID and other invisible watermarks. Only the vendor can decode them.</li>
-<li><b>C2PA is verified:</b> the manifest is parsed, the COSE signature is checked with WebCrypto, and the content hash is recomputed over the file. The certificate is not checked against the official C2PA trust list, so the signer name is shown as a claim.</li>
+<li><b>C2PA is verified:</b> the manifest is parsed, the COSE signature is checked with WebCrypto, and the content hash is recomputed over the file. The certificate chain is then checked against the official C2PA trust list (bundled). Revocation is not checked. MP4/MOV box hashes are recomputed for unfragmented files.</li>
 <li>JPEG forensics: where the quantization tables came from, the IJG quality, 8×8 grid alignment, double quantization and a JPEG ghost map.</li>
 <li>Video: fixed sensor noise carried across frames, texture shimmer in still areas, and brightness flicker.</li>
 <li>Screenshots, re-saves and messaging apps strip metadata and weaken pixel traces, so reliability goes down.</li>
@@ -47,6 +47,10 @@
 <p id="dash-count" class="tstat"></p>
 </section>
 <div id="media-out"></div>
+<details class="card" id="prnu-card"><summary>Camera match · sensor fingerprint (PRNU)</summary>
+<p>Every camera sensor leaves a faint, fixed noise pattern. Build a fingerprint from photos you know came from one camera, then test whether other photos share it. Works on original, uncropped, unresized files at least 512 px across. Use 10–20 bright, plain references such as sky or walls.</p>
+<div class="row"><label class="btn ghost sm">1 · Reference photos<input type="file" id="prnu-ref" accept="image/*" multiple hidden></label><label class="btn ghost sm">2 · Photos to test<input type="file" id="prnu-test" accept="image/*" multiple hidden></label></div>
+<p id="prnu-status" class="tstat"></p><div id="prnu-out"></div></details>
 </section>
 <section id="panel-text" class="panel">
 <aside class="note"><b>Notes</b><ul>
@@ -55,6 +59,7 @@
 <li>Each numeric column gets min, median, max and sum, and outliers are flagged with a robust MAD z-score above 3.5.</li>
 <li>Groups lines that share the same shape into tables. Also handles delimited tables and repeating key:value records.</li>
 <li>Junk is removed automatically: HTML, dividers, duplicates, boilerplate like "Sent from my…" or "Unsubscribe", and invisible characters. Everything removed is listed with the reason.</li>
+<li><b>Writing check</b> (English, 150+ words): marker vocabulary, stock phrases, sentence and paragraph burstiness, informal slips, leftover Markdown and self-disclosure. The score stays between 15 and 85 unless the text discloses itself (for example "as an AI language model"). Reliability is capped at 65%. It is never proof of authorship.</li>
 <li>Rule-based, with no AI model, so prose with unusual formatting stays as plain text.</li></ul></aside>
 <textarea id="text-input" placeholder="Paste any messy text: invoices, logs, specs, chats, lists…"></textarea>
 <div class="row"><button id="text-run" class="btn">Extract</button><button id="text-sample" class="btn ghost">Try sample</button></div>
@@ -70,11 +75,11 @@
 <tr><td>Provenance verifiers</td><td>Content Credentials Verify (C2PA), Adobe Content Authenticity</td><td>Reads and cryptographically verifies a signed C2PA manifest</td><td>Close to certain when a valid manifest exists</td><td>Says nothing when metadata is stripped, which most social platforms and screenshots do</td></tr>
 <tr><td>Vendor watermark detectors</td><td>Google SynthID Detector, Meta Video Seal, OpenAI internal tools</td><td>Decodes an invisible watermark embedded by that vendor's own model</td><td>Robust to crops and compression for that vendor's outputs</td><td>Only detects one vendor. Mostly closed or limited access. Cannot run in a browser</td></tr>
 <tr><td>Forensic toolkits</td><td>FotoForensics, Forensically, InVID-WeVerify</td><td>ELA, noise, clone, metadata and JPEG analysis shown to a human analyst</td><td>Shows edits and splices, transparent</td><td>No verdict; needs expert interpretation; not designed for fully generated images</td></tr>
-<tr><td>AI text detectors</td><td>GPTZero, Originality.ai, Turnitin, Copyleaks</td><td>Perplexity and burstiness statistics or trained classifiers</td><td>Catches unedited output from popular models</td><td>OpenAI withdrew its own classifier in 2023 for low accuracy. Biased against non-native English writers (Liang et al. 2023). Easily defeated by paraphrasing</td></tr>
-<tr><td><b>Veritas Lens</b></td><td>This app</td><td>Parses and verifies C2PA, measures JPEG, pixel, temporal and audio statistics, all on-device</td><td>Privacy, transparency, cryptographic provenance, edit and recompression evidence, every number explained</td><td>No trained model, so it will miss many clean generated images that classifiers catch. Cannot read SynthID. Does not check C2PA trust lists. Does not judge whether text was written by AI, because the evidence says this cannot be done reliably</td></tr>
+<tr><td>AI text detectors</td><td>GPTZero, Originality.ai, Turnitin, Copyleaks</td><td>Perplexity from a language model (GPTZero, DetectGPT, Binoculars) or trained classifiers</td><td>Catches unedited output from popular models</td><td>OpenAI withdrew its own classifier in 2023 for low accuracy. Biased against non-native English writers (Liang et al. 2023). Easily defeated by paraphrasing</td></tr>
+<tr><td><b>Veritas Lens</b></td><td>This app</td><td>Parses and verifies C2PA, measures JPEG, pixel, temporal and audio statistics, all on-device</td><td>Privacy, transparency, cryptographic provenance, edit and recompression evidence, every number explained</td><td>No trained model, so it will miss many clean generated images that classifiers catch. Cannot read SynthID. Does not check C2PA trust lists. The writing check uses style statistics only and has no language-model perplexity, so it is weaker than model-based detectors on unedited output. It is capped and gated for that reason</td></tr>
 </tbody></table></div>
 <h4>What that means for a result here</h4>
-<ul class="drivers"><li><b>Verified C2PA</b>: as strong as any online tool.</li><li><b>Leans AI / Leans camera without a tag</b>: weaker than a trained classifier on known generators, but the reasons are visible and checkable.</li><li><b>Inconclusive</b> is a real answer: no tool can prove a clean, stripped image is authentic.</li></ul>
+<ul class="drivers"><li><b>Verified C2PA with a trusted chain</b>: as strong as any online tool.</li><li><b>Writing check</b>: comparable signals to the vocabulary studies; never as evidence on its own.</li><li><b>Leans AI / Leans camera without a tag</b>: weaker than a trained classifier on known generators, but the reasons are visible and checkable.</li><li><b>Inconclusive</b> is a real answer: no tool can prove a clean, stripped image is authentic.</li></ul>
 </article>
 <div id="refs-out"></div>
 </section>
@@ -83,6 +88,8 @@
 <script src="js/app.js"></script>
 <script src="js/provenance.js"></script>
 <script src="js/jpeg.js"></script>
+<script src="js/writing.js"></script>
 <script src="js/text.js"></script>
+<script src="js/prnu.js"></script>
 </body>
 </html>

@@ -27,6 +27,15 @@ const REF = {
   audio: ['ASVspoof challenge, spectral artefacts of synthetic speech', 'https://www.asvspoof.org/'],
   lossy: ['MP3/AAC encoders low-pass at ~16–19 kHz (LAME docs)', 'https://lame.sourceforge.io/'],
   name: ['Filename is user-editable — weak hint only', ''],
+  trust: ['C2PA conformance trust list', 'https://github.com/c2pa-org/conformance-public'],
+  kobak: ['Kobak et al. 2024, Delving into ChatGPT usage in academic writing through excess vocabulary', 'https://arxiv.org/abs/2406.07016'],
+  liangmap: ['Liang et al. 2024, Mapping the increasing use of LLMs in scientific papers', 'https://arxiv.org/abs/2404.01268'],
+  gltr: ['Gehrmann et al. 2019, GLTR: statistical detection of generated text', 'https://arxiv.org/abs/1906.04043'],
+  sada: ['Sadasivan et al. 2023, Can AI-generated text be reliably detected?', 'https://arxiv.org/abs/2303.11156'],
+  bias: ['Liang et al. 2023, GPT detectors are biased against non-native English writers', 'https://arxiv.org/abs/2304.02819'],
+  binoc: ['Hans et al. 2024, Spotting LLMs with Binoculars (zero-shot, needs a model)', 'https://arxiv.org/abs/2401.12070'],
+  prnu2: ['Chen, Fridrich, Goljan, Lukáš 2008, Determining image origin and integrity using sensor noise', 'https://doi.org/10.1109/TIFS.2007.916285'],
+  pce: ['Goljan, Fridrich, Filler 2009, Large scale test of sensor fingerprint camera identification', 'https://doi.org/10.1117/12.805701'],
   cose: ['RFC 9052, CBOR Object Signing and Encryption (COSE)', 'https://www.rfc-editor.org/rfc/rfc9052'],
   qt: ['Kee, Johnson, Farid 2011, Digital image authentication from JPEG headers', 'https://doi.org/10.1109/TIFS.2011.2128309'],
   dq: ['Lukáš & Fridrich 2003, Estimation of primary quantization matrix in double compressed JPEG images', 'https://www.ws.binghamton.edu/fridrich/Research/Doublecompression.pdf'],
@@ -65,6 +74,18 @@ const REF_GROUPS = [
     [REF.temporal, 'Video: noise carry-over, texture shimmer, flicker', 'Real sensors repeat a fixed noise pattern from frame to frame; generators re-synthesise it'],
     [REF.lossy, 'Bandwidth cutoff', 'Lossy encoders low-pass the band, erasing evidence'],
     [['Afchar et al. 2024, Detecting music deepfakes is easy but actually hard', 'https://arxiv.org/abs/2405.04181'], 'Overall audio approach', 'Why audio reliability is capped at 60%']
+  ]],
+  ['Writing check', [
+    [REF.kobak, 'Marker vocabulary rate', 'Words such as delve, showcasing and underscores rose sharply after 2022'],
+    [REF.liangmap, 'Marker vocabulary rate', 'Population-level estimate; weak on single documents'],
+    [REF.gltr, 'Sentence-length burstiness', 'Generated text is more uniform than human text'],
+    [REF.sada, 'Reliability caps', 'Paraphrasing defeats detectors, so no style score goes above 85'],
+    [REF.bias, 'Length gate, honest note', 'Simple or non-native writing is often flagged wrongly'],
+    [REF.binoc, 'Not implemented', 'The strongest zero-shot methods need a language model, which is out of scope']
+  ]],
+  ['Camera match', [
+    [REF.prnu2, 'Fingerprint estimate', 'Maximum-likelihood PRNU estimate from several reference photos'],
+    [REF.pce, 'PCE threshold 60', 'False-match rate below 1 in 10⁴ in a test with over 1 million images']
   ]],
   ['Text pattern recognition', [
     [['Unicode TR #18, Regular expressions & \\p{L} classes', 'https://unicode.org/reports/tr18/'], 'Tokenizer', 'Multilingual letter/number detection'],
@@ -154,14 +175,16 @@ async function provenance(f, u, meta) {
   const signer = r.signer.subject ? [r.signer.subject.CN, r.signer.subject.O].filter(Boolean).join(' · ') : '';
   const L = meta.list;
   L.push(sig('C2PA manifest', (r.generator || r.label) + ' · ' + r.manifests + ' manifest' + (r.manifests > 1 ? 's' : '') + (r.ingredients ? ' · ' + r.ingredients + ' ingredient' + (r.ingredients > 1 ? 's' : '') : ''), 'neutral', 0, 'Parsed from JUMBF: ' + r.assertions.length + ' assertions' + (r.manifests > 1 ? '. Several manifests mean the file was edited after the first signature' : ''), REF.c2pa));
-  L.push(sig('C2PA signature', S + ' · ' + (r.sig.alg || '?') + (signer ? ' · ' + signer : '') + (r.signer.from ? ' · cert ' + r.signer.from + ' → ' + r.signer.to : ''), S === 'invalid' ? 'proc' : 'neutral', 0, S === 'valid' ? 'Cryptographically valid for the embedded certificate. The certificate chain is not checked against the C2PA trust list, so the signer name is a claim' + (r.signer.selfSigned ? ' (self-signed)' : '') : S === 'invalid' ? 'Signature does not match the claim: manifest was altered' : 'Could not verify in this browser (' + S + ')', REF.cose));
-  L.push(sig('C2PA content hash', H + (r.hash.alg ? ' · ' + r.hash.alg : ''), H === 'mismatch' ? 'proc' : 'neutral', 0, H === 'match' ? 'Pixels and bytes are exactly what was signed' : H === 'mismatch' ? 'File bytes changed after signing' : H === 'unchecked' ? 'Box-based hash (video/BMFF) is not recomputed here' : 'No data-hash assertion', REF.c2pa));
+  L.push(sig('C2PA signature', S + ' · ' + (r.sig.alg || '?') + (signer ? ' · ' + signer : '') + (r.signer.from ? ' · cert ' + r.signer.from + ' → ' + r.signer.to : ''), S === 'invalid' ? 'proc' : 'neutral', 0, S === 'valid' ? 'Cryptographically valid for the embedded certificate' : S === 'invalid' ? 'Signature does not match the claim: manifest was altered' : 'Could not verify in this browser (' + S + ')', REF.cose));
+  L.push(sig('C2PA content hash', H + (r.hash.alg ? ' · ' + r.hash.alg : ''), H === 'mismatch' ? 'proc' : 'neutral', 0, H === 'match' ? 'Pixels and bytes are exactly what was signed' : H === 'mismatch' ? 'File bytes changed after signing' : H === 'unchecked' ? 'Not recomputed (' + (r.hash.alg || '') + ')' : H === 'unconfirmed' ? 'BMFF hash variant not reproduced here; not treated as tampering' : 'No hash assertion', REF.c2pa));
   if (r.actions.length) L.push(sig('C2PA actions', r.actions.slice(0, 6).join(' | '), 'neutral', 0, 'Edit history recorded by the signing tool', REF.c2pa));
-  const wAI = tampered ? 15 : ok && H === 'match' ? 50 : ok ? 45 : 35;
+  const T = r.trust || {}, tr = T.status === 'trusted';
+  if (r.trust) L.push(sig('C2PA certificate chain', T.status + (T.anchor ? ' · ' + T.anchor : T.root ? ' · root ' + T.root : '') + (T.expired ? ' · a certificate has expired' : ''), 'neutral', 0, tr ? 'Chain verified up to an anchor on the official C2PA trust list. Revocation is not checked' : 'Signer identity is not vouched for by the C2PA trust list; the signature still proves the manifest is intact', REF.trust));
+  const wAI = tampered ? 15 : ok && tr && H === 'match' ? 50 : ok && tr ? 47 : ok ? 40 : 35;
   if (r.ai) { L.push(sig('C2PA digitalSourceType', r.sourceTypes.join(', '), 'ai', wAI, 'Signed manifest declares AI-generated content' + (tampered ? ', but the manifest or file was altered' : ''), REF.iptc)); I.strong = !tampered; }
   else if (who) { L.push(sig('C2PA AI vendor', who[0], 'ai', Math.round(wAI * .7), 'Manifest generator or signer belongs to an AI vendor', REF.c2pa)); I.strong = !tampered; }
-  else if (r.capture) L.push(sig('C2PA digitalSourceType', r.sourceTypes.join(', '), 'real', ok ? -25 : -10, ok ? 'Signed manifest declares a camera capture' : 'Declares a capture, but the signature is unverified', REF.iptc));
-  I.verified = ok && !tampered; I.tampered = tampered;
+  else if (r.capture) L.push(sig('C2PA digitalSourceType', r.sourceTypes.join(', '), 'real', ok && tr ? -30 : ok ? -20 : -10, ok ? 'Signed manifest declares a camera capture' : 'Declares a capture, but the signature is unverified', REF.iptc));
+  I.verified = ok && !tampered; I.tampered = tampered; I.trusted = I.verified && tr;
 }
 
 function gray(d, w, h) { const g = new Float32Array(w * h); for (let i = 0; i < w * h; i++) g[i] = d[i * 4] * .299 + d[i * 4 + 1] * .587 + d[i * 4 + 2] * .114; return g; }
@@ -265,11 +288,11 @@ function combine(list, info, cap) {
   let s = 50; list.forEach(x => s += x.w);
   if (!info.strong) s = 50 + (s - 50) * (Math.abs(ai - real) >= 2 ? 1 : .5);
   let rel = 35 + Math.min(30, Math.abs(ai - real) * 8);
-  if (info.strong) rel = info.verified ? 95 : 85;
+  if (info.strong) rel = info.trusted ? 95 : info.verified ? 88 : 80;
   else { if (info.screenshot) rel -= 25; if (info.quality && info.quality < 85) rel -= 12; if (info.double) rel -= 10; if (info.gridLost) rel -= 6; if (info.tampered) rel -= 10; if (cap) rel = Math.min(rel, cap); }
   s = clamp(Math.round(s), info.strong ? 2 : 15, info.strong ? 98 : 85);
   const label = info.strong && s > 70 ? 'Declared / tagged AI' : s >= 68 ? 'Leans AI' : s <= 32 ? 'Leans camera / natural' : 'Inconclusive';
-  return { score: s, rel: clamp(Math.round(rel), 10, 95), label, verified: !!info.verified };
+  return { score: s, rel: clamp(Math.round(rel), 10, 95), label, verified: !!info.verified, trusted: !!info.trusted };
 }
 
 const DIRL = { ai: '→ AI', real: '→ Camera', proc: '→ Processing', neutral: '· neutral' };
@@ -288,7 +311,7 @@ function render(file, kind, list, r, extra, thumb) {
   const v = VCLS(r.label), type = kind.split(' ')[0];
   const el = document.createElement('details'); el.className = 'fcard v-' + v;
   const th = thumb ? '<img class="thumb" src="' + thumb + '" alt="">' : '<span class="thumb glyph">' + (type === 'Audio' ? '♪' : type === 'Video' ? '▶' : '!') + '</span>';
-  el.innerHTML = '<summary>' + th + '<span class="fmeta"><b>' + esc(file.name) + '</b><small>' + esc(kind) + ' · ' + (file.size / 1048576).toFixed(2) + ' MB' + (top[0] ? ' · ' + esc(top[0].name) + ' ' + DIRL[top[0].dir] : '') + '</small></span><span class="vpill">' + esc(r.label) + '</span><span class="fscore"><b>' + r.score + '%</b><small>reliability ' + r.rel + '%</small><span class="mini"><i style="width:' + r.score + '%"></i></span></span></summary><div class="fbody"><p class="honest">' + (r.label === 'Error' ? 'File could not be decoded.' : /Declared/.test(r.label) ? 'Based on an embedded provenance tag' + (r.verified ? ' with a valid signature' : '') + '. Tags can be stripped, but they are not guesses.' : 'Statistical estimate from measured signals, not proof. Without a provenance tag the score stays between 15 and 85.') + '</p>' + (list.length ? '<h4>Main drivers</h4><ul class="drivers">' + (top.map(x => '<li><b>' + DIRL[x.dir] + '</b> ' + esc(x.name) + ': ' + esc(x.why) + '</li>').join('') || '<li>No decisive signal</li>') + '</ul>' : '') + (extra || '') + (list.length ? '<details class="checks" open><summary>All ' + list.length + ' checks</summary>' + checksTable(list) + '</details>' : '') + '</div>';
+  el.innerHTML = '<summary>' + th + '<span class="fmeta"><b>' + esc(file.name) + '</b><small>' + esc(kind) + ' · ' + (file.size / 1048576).toFixed(2) + ' MB' + (top[0] ? ' · ' + esc(top[0].name) + ' ' + DIRL[top[0].dir] : '') + '</small></span><span class="vpill">' + esc(r.label) + '</span><span class="fscore"><b>' + r.score + '%</b><small>reliability ' + r.rel + '%</small><span class="mini"><i style="width:' + r.score + '%"></i></span></span></summary><div class="fbody"><p class="honest">' + (r.label === 'Error' ? 'File could not be decoded.' : /Declared/.test(r.label) ? 'Based on an embedded provenance tag' + (r.trusted ? ' with a valid signature from a C2PA-trusted signer' : r.verified ? ' with a valid signature (signer not on the C2PA trust list)' : '') + '. Tags can be stripped, but they are not guesses.' : 'Statistical estimate from measured signals, not proof. Without a provenance tag the score stays between 15 and 85.') + '</p>' + (list.length ? '<h4>Main drivers</h4><ul class="drivers">' + (top.map(x => '<li><b>' + DIRL[x.dir] + '</b> ' + esc(x.name) + ': ' + esc(x.why) + '</li>').join('') || '<li>No decisive signal</li>') + '</ul>' : '') + (extra || '') + (list.length ? '<details class="checks" open><summary>All ' + list.length + ' checks</summary>' + checksTable(list) + '</details>' : '') + '</div>';
   entries.push({ name: file.name, type, v, r, el, idx: entries.length, top: top[0] ? top[0].name + ' ' + DIRL[top[0].dir] : '' });
   $('#media-out').append(el); drawDash();
   return el;

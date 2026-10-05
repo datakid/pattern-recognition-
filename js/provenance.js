@@ -111,7 +111,8 @@ const C2PA = (() => {
       else if (oid === '2a864886f70d010101') kind = 'RSA';
       else if (oid === '2a864886f70d01010a') { kind = 'RSA-PSS'; const bit = kidsOf(d, sp)[1]; spki = derSeq([ALGRSA, d.slice(bit.s, bit.e)]); }
       else if (oid === '2b6570') kind = 'Ed25519';
-      return { subject, issuer, from: when(d, val[0]), to: when(d, val[1]), selfSigned: JSON.stringify(subject) === JSON.stringify(issuer), spki, curve, kind };
+      const top = kidsOf(d, c), sa = kidsOf(d, top[1]), sb = top[2], iR = hex(d.subarray(f[i + 2].s, f[i + 2].e)), sR = hex(d.subarray(f[i + 4].s, f[i + 4].e));
+      return { subject, issuer, from: when(d, val[0]), to: when(d, val[1]), selfSigned: iR === sR, spki, curve, kind, issuerRaw: iR, subjectRaw: sR, tbs: d.slice(tbs.s, tbs.e), sigOid: hex(d.subarray(sa[0].b, sa[0].e)), sigParams: sa[1] && sa[1].t === 0x30 ? d.slice(sa[1].s, sa[1].e) : null, sigVal: d.slice(sb.b + 1, sb.e) };
     } catch (e) { return { subject: {}, issuer: {} }; }
   }
 
@@ -132,11 +133,58 @@ const C2PA = (() => {
     } catch (e) { return 'unsupported'; }
   }
 
+  const SIGOID = { '2a8648ce3d040302': ['ECDSA', 'SHA-256'], '2a8648ce3d040303': ['ECDSA', 'SHA-384'], '2a8648ce3d040304': ['ECDSA', 'SHA-512'], '2a864886f70d01010b': ['RSASSA-PKCS1-v1_5', 'SHA-256'], '2a864886f70d01010c': ['RSASSA-PKCS1-v1_5', 'SHA-384'], '2a864886f70d01010d': ['RSASSA-PKCS1-v1_5', 'SHA-512'], '2a864886f70d01010a': ['RSA-PSS'], '2b6570': ['Ed25519'] };
+  const HOID = { '608648016503040201': 'SHA-256', '608648016503040202': 'SHA-384', '608648016503040203': 'SHA-512' };
+  function ecRaw(der, size) { const [r, q] = kidsOf(der, tlv(der, 0)), fix = n => { let b = der.subarray(n.b, n.e); while (b.length > size && b[0] === 0) b = b.subarray(1); const o = new Uint8Array(size); o.set(b, size - b.length); return o; }; return cat([fix(r), fix(q)]); }
+  async function certSignedBy(c, p) {
+    const a = SIGOID[c.sigOid]; if (!a || !p.spki || !c.tbs) return false;
+    try {
+      let name = a[0], hash = a[1], salt = 20, sv = c.sigVal;
+      if (name === 'RSA-PSS') {
+        hash = 'SHA-1'; const ps = c.sigParams;
+        if (ps) kidsOf(ps, tlv(ps, 0)).forEach(k => { if (k.t === 0xA0) { const oid = kidsOf(ps, tlv(ps, k.b))[0]; hash = HOID[hex(ps.subarray(oid.b, oid.e))] || hash; } if (k.t === 0xA2) { const n = tlv(ps, k.b); salt = 0; for (let j = n.b; j < n.e; j++) salt = salt * 256 + ps[j]; } });
+      }
+      const imp = name === 'ECDSA' ? { name, namedCurve: p.curve } : name === 'Ed25519' ? { name } : { name, hash };
+      const key = await crypto.subtle.importKey('spki', p.spki, imp, false, ['verify']);
+      if (name === 'ECDSA') sv = ecRaw(sv, { 'P-256': 32, 'P-384': 48, 'P-521': 66 }[p.curve]);
+      return await crypto.subtle.verify(name === 'ECDSA' ? { name, hash } : name === 'RSA-PSS' ? { name, saltLength: salt } : { name }, key, sv, c.tbs);
+    } catch (e) { return false; }
+  }
+  let anchors = null;
+  async function trustList() {
+    if (anchors) return anchors;
+    try { const t = await (await fetch('trust/c2pa-trust-list.pem')).text(); anchors = [...t.matchAll(/-----BEGIN CERTIFICATE-----([\s\S]+?)-----END CERTIFICATE-----/g)].map(m => x509(Uint8Array.from(atob(m[1].replace(/\s/g, '')), ch => ch.charCodeAt(0)))).filter(a => a.spki); } catch (e) { anchors = []; }
+    return anchors;
+  }
+  async function chainTrust(certs) {
+    const A = await trustList(); if (!A.length) return { status: 'trust list unavailable' };
+    for (let i = 0; i + 1 < certs.length; i++) if (!(await certSignedBy(certs[i], certs[i + 1]))) return { status: 'chain broken', at: i };
+    const today = new Date().toISOString().slice(0, 10), expired = certs.some(c => c.to && c.to < today);
+    for (const c of certs) { const d = A.find(a => a.subjectRaw === c.subjectRaw && hex(a.spki) === hex(c.spki)); if (d) return { status: 'trusted', anchor: d.subject.O || d.subject.CN, expired }; }
+    const last = certs[certs.length - 1];
+    for (const a of A.filter(a => a.subjectRaw === last.issuerRaw)) if (await certSignedBy(last, a)) return { status: 'trusted', anchor: a.subject.O || a.subject.CN, expired };
+    return { status: last.selfSigned ? 'self-signed, not on trust list' : 'issuer not on C2PA trust list', root: last.issuer.O || last.issuer.CN, expired };
+  }
+  async function bmffHash(f, h, calg) {
+    const alg = HASH[h.alg || calg || 'sha256'];
+    if (!alg || !(h.hash instanceof Uint8Array)) return { status: 'unchecked', alg: 'bmff' };
+    if (h.merkle) return { status: 'unchecked', alg: 'bmff merkle, fragmented' };
+    const ex = h.exclusions || [];
+    if (ex.some(e => !/^\/[^\/]{4}$/.test(e.xpath || ''))) return { status: 'unchecked', alg: 'bmff nested exclusions' };
+    if (f.size > 4e8) return { status: 'unchecked', alg: 'bmff, file over 400 MB' };
+    const u = new Uint8Array(await f.arrayBuffer()), top = boxes(u, 0, u.length);
+    const hit = b => ex.some(e => e.xpath === '/' + b.t && (!e.data || [].concat(e.data).every(d => eq(u.subarray(b.s + d.offset, b.s + d.offset + d.value.length), d.value))));
+    const v1 = [], v2 = [];
+    top.forEach(b => { if (hit(b)) { const o = new Uint8Array(8); new DataView(o.buffer).setBigUint64(0, BigInt(b.s)); v2.push(o); } else { v1.push(u.subarray(b.s, b.e)); v2.push(u.subarray(b.s, b.e)); } });
+    for (const [v, parts] of [['v1', v1], ['v2', v2]]) if (eq(new Uint8Array(await crypto.subtle.digest(alg, cat(parts))), h.hash)) return { status: 'match', alg: alg + ' bmff ' + v };
+    return { status: 'unconfirmed', alg: alg + ' bmff' };
+  }
+
   const content = n => n && n.kids ? n.kids.find(k => !k.kids) : null;
   const decode = c => !c ? null : c.t === 'cbor' ? safe(() => cbor(c.data)) : c.t === 'json' ? safe(() => JSON.parse(utf8(c.data))) : null;
   const HASH = { sha256: 'SHA-256', sha384: 'SHA-384', sha512: 'SHA-512' };
 
-  async function parse(j, file) {
+  async function parse(j, file, bmff) {
     const top = boxes(j, 0, j.length).find(b => b.t === 'jumb'); if (!top) return null;
     const store = jumb(j, top); if (store.label !== 'c2pa') return null;
     const mans = store.kids.filter(k => k.kids), act = mans[mans.length - 1]; if (!act) return null;
@@ -169,7 +217,7 @@ const C2PA = (() => {
         const d = new Uint8Array(await crypto.subtle.digest(alg, cat(parts)));
         r.hash = { status: eq(d, h.hash) ? 'match' : 'mismatch', alg };
       }
-    } else if (bk) r.hash = { status: 'unchecked', alg: bk.replace('c2pa.hash.', '') };
+    } else if (bk) r.hash = bmff && A[bk] && /bmff/.test(bk) ? await bmffHash(bmff, A[bk], claim.alg) : { status: 'unchecked', alg: bk.replace('c2pa.hash.', '') };
     if (sigBox && claimRaw) {
       const c = content(sigBox), cose = c && safe(() => cbor(c.data)), arr = cose && (cose.tag !== undefined ? cose.v : cose);
       if (Array.isArray(arr)) {
@@ -177,7 +225,7 @@ const C2PA = (() => {
         let ch = ph['33'] || (unprot && (unprot['33'] || unprot.x5chain)); if (ch instanceof Uint8Array) ch = [ch];
         const alg = ph['1'];
         r.sig.alg = COSE[alg] ? COSE[alg][0] : String(alg ?? '?');
-        if (ch && ch[0]) { const cert = x509(ch[0]); r.signer = cert; r.chain = ch.length; r.sig.status = await verify(alg, cert, sg, sigStructure(prot, claimRaw.data)); }
+        if (ch && ch[0]) { const cert = x509(ch[0]); r.signer = cert; r.chain = ch.length; r.sig.status = await verify(alg, cert, sg, sigStructure(prot, claimRaw.data)); r.trust = await chainTrust(ch.map(x509)); }
         else r.sig.status = 'no certificate';
         if (unprot && (unprot.sigTst || unprot.sigTst2)) r.sig.timestamp = true;
       }
@@ -187,7 +235,7 @@ const C2PA = (() => {
 
   async function read(u, opts = {}) {
     const js = opts.jumbf ? [opts.jumbf] : extract(u);
-    for (const j of js) { try { const r = await parse(j, opts.jumbf ? null : u); if (r) return r; } catch (e) {} }
+    for (const j of js) { try { const r = await parse(j, opts.jumbf ? null : u, opts.bmff); if (r) return r; } catch (e) {} }
     return null;
   }
 
@@ -200,7 +248,7 @@ const C2PA = (() => {
       if (len < 8) break;
       if (t === 'uuid' && hex(h.subarray(8, 24)) === C2PA_UUID && len < 3e7) {
         const j = bmffJumbf(new Uint8Array(await f.slice(o, o + len).arrayBuffer()));
-        if (j) return read(null, { jumbf: j });
+        if (j) return read(null, { jumbf: j, bmff: f });
       }
       o += len;
     }
