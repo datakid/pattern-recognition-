@@ -26,9 +26,13 @@
 <aside class="note"><b>Notes</b><ul>
 <li><b>Can read:</b> C2PA Content Credentials (ChatGPT/DALL·E/Sora, Adobe Firefly, Microsoft, Google), IPTC <code>trainedAlgorithmicMedia</code>, generator text in PNG files (Stable Diffusion, ComfyUI), EXIF, XMP and ID3 tags.</li>
 <li><b>Cannot read:</b> Google SynthID and other invisible watermarks. Only the vendor can decode them.</li>
-<li>C2PA signatures are detected and named, not verified.</li>
+<li><b>C2PA is verified:</b> the manifest is parsed, the COSE signature is checked with WebCrypto, and the content hash is recomputed over the file. The certificate is not checked against the official C2PA trust list, so the signer name is shown as a claim.</li>
+<li>JPEG forensics: where the quantization tables came from, the IJG quality, 8×8 grid alignment, double quantization and a JPEG ghost map.</li>
+<li>Video: fixed sensor noise carried across frames, texture shimmer in still areas, and brightness flicker.</li>
 <li>Screenshots, re-saves and messaging apps strip metadata and weaken pixel traces, so reliability goes down.</li>
-<li>Video confidence is capped at 45% and audio at 60%, unless a provenance tag is found.</li></ul></aside>
+<li><b>Honest scoring:</b> only measured, objective signals change the score. Filename, clip length, saturation and duration are still shown, but they add 0 points. If no provenance tag is found, the score stays between 15 and 85, and it is halved when the pixel signals disagree.</li>
+<li>Pixel checks include noise residual, kurtosis, CFA, a 1D and 2D FFT spectrum, JPEG grid, histogram comb gaps, colour diversity and copy-move clone detection.</li>
+<li>Video reliability is capped at 45% and audio at 60%, unless a provenance tag is found.</li></ul></aside>
 <label class="drop" id="drop-zone"><input type="file" id="media-input" multiple hidden><span>Drop or choose files: images · videos · audio · text</span></label>
 <p id="media-progress" class="progress"></p>
 <section id="batch-dash" class="card dash" hidden>
@@ -46,7 +50,9 @@
 </section>
 <section id="panel-text" class="panel">
 <aside class="note"><b>Notes</b><ul>
-<li>Recognizes amounts, quantities with units, percentages, dates, times, emails, URLs, phone numbers, IP addresses, IDs, hashtags and mentions.</li>
+<li>Recognizes amounts, quantities with units, percentages, dates, times, emails, URLs, phones, IPs, UUIDs, IBANs, card numbers, coordinates, hex colours, versions, IDs, hashtags and mentions.</li>
+<li>Values are checked, not just matched: Luhn for cards, mod-97 for IBANs, real calendar dates, IP octet range, coordinate range. Number-like strings that fail Luhn are not listed as cards.</li>
+<li>Each numeric column gets min, median, max and sum, and outliers are flagged with a robust MAD z-score above 3.5.</li>
 <li>Groups lines that share the same shape into tables. Also handles delimited tables and repeating key:value records.</li>
 <li>Junk is removed automatically: HTML, dividers, duplicates, boilerplate like "Sent from my…" or "Unsubscribe", and invisible characters. Everything removed is listed with the reason.</li>
 <li>Rule-based, with no AI model, so prose with unusual formatting stays as plain text.</li></ul></aside>
@@ -56,11 +62,27 @@
 </section>
 <section id="panel-refs" class="panel">
 <aside class="note"><b>Notes</b><ul><li>These are the sources behind each check. The weights are heuristics drawn from them, not trained values.</li><li>Every link opens the original paper or standard.</li></ul></aside>
+<article class="card" id="landscape">
+<h3>How Veritas Lens compares to online detectors</h3>
+<p>Summary of public documentation and peer-reviewed evaluations. Vendor accuracy claims are self-reported and usually measured on generators the vendor trained on.</p>
+<div class="tablewrap"><table><thead><tr><th>Tool type</th><th>Examples</th><th>How it works</th><th>Where it is strong</th><th>Known weaknesses</th></tr></thead><tbody>
+<tr><td>Trained image classifiers</td><td>Hive, Sightengine, AI or Not, Illuminarty, Is It AI</td><td>Upload to a server; a neural network trained on real vs generated images returns a probability</td><td>High hit rates on images from generators in their training set, including stripped screenshots</td><td>Accuracy drops on new generators, after resizing, compression or noise (Ojha 2023, Corvi 2023). Usually no explanation. The file leaves your device</td></tr>
+<tr><td>Provenance verifiers</td><td>Content Credentials Verify (C2PA), Adobe Content Authenticity</td><td>Reads and cryptographically verifies a signed C2PA manifest</td><td>Close to certain when a valid manifest exists</td><td>Says nothing when metadata is stripped, which most social platforms and screenshots do</td></tr>
+<tr><td>Vendor watermark detectors</td><td>Google SynthID Detector, Meta Video Seal, OpenAI internal tools</td><td>Decodes an invisible watermark embedded by that vendor's own model</td><td>Robust to crops and compression for that vendor's outputs</td><td>Only detects one vendor. Mostly closed or limited access. Cannot run in a browser</td></tr>
+<tr><td>Forensic toolkits</td><td>FotoForensics, Forensically, InVID-WeVerify</td><td>ELA, noise, clone, metadata and JPEG analysis shown to a human analyst</td><td>Shows edits and splices, transparent</td><td>No verdict; needs expert interpretation; not designed for fully generated images</td></tr>
+<tr><td>AI text detectors</td><td>GPTZero, Originality.ai, Turnitin, Copyleaks</td><td>Perplexity and burstiness statistics or trained classifiers</td><td>Catches unedited output from popular models</td><td>OpenAI withdrew its own classifier in 2023 for low accuracy. Biased against non-native English writers (Liang et al. 2023). Easily defeated by paraphrasing</td></tr>
+<tr><td><b>Veritas Lens</b></td><td>This app</td><td>Parses and verifies C2PA, measures JPEG, pixel, temporal and audio statistics, all on-device</td><td>Privacy, transparency, cryptographic provenance, edit and recompression evidence, every number explained</td><td>No trained model, so it will miss many clean generated images that classifiers catch. Cannot read SynthID. Does not check C2PA trust lists. Does not judge whether text was written by AI, because the evidence says this cannot be done reliably</td></tr>
+</tbody></table></div>
+<h4>What that means for a result here</h4>
+<ul class="drivers"><li><b>Verified C2PA</b>: as strong as any online tool.</li><li><b>Leans AI / Leans camera without a tag</b>: weaker than a trained classifier on known generators, but the reasons are visible and checkable.</li><li><b>Inconclusive</b> is a real answer: no tool can prove a clean, stripped image is authentic.</li></ul>
+</article>
 <div id="refs-out"></div>
 </section>
 </main>
 <footer>Veritas Lens · all processing runs locally in your browser</footer>
 <script src="js/app.js"></script>
+<script src="js/provenance.js"></script>
+<script src="js/jpeg.js"></script>
 <script src="js/text.js"></script>
 </body>
 </html>

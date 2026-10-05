@@ -62,9 +62,15 @@ const TXT = (() => {
   const TOK = [
     ['url', /\bhttps?:\/\/[^\s<>"')]+|\bwww\.[^\s<>"')]+/giu],
     ['email', /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gu],
+    ['uuid', /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/giu],
+    ['iban', /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})?\b/gu],
+    ['coord', /-?\d{1,2}\.\d{3,},\s?-?\d{1,3}\.\d{3,}/gu],
+    ['color', /(?<![\w&])#(?:[0-9a-f]{6}|[0-9a-f]{3})\b/giu],
     ['ip', /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu],
     ['date', /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?Z?)?|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b\d{1,2}(?:st|nd|rd|th)?\s(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s\d{4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s\d{1,2}(?:st|nd|rd|th)?,?\s\d{4}\b/giu],
     ['time', /\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m\b)?/giu],
+    ['version', /\bv\d+(?:\.\d+){1,3}(?:-[\w.]+)?\b|\b\d+\.\d+\.\d+-[\w.]+\b/gu],
+    ['card', /\b(?:\d[ -]?){12,18}\d\b/gu],
     ['phone', /(?:\+\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}\b/gu],
     ['hashtag', /(?<![\w])#[\p{L}\w]+/gu],
     ['mention', /(?<![\w])@[\w.]+/gu],
@@ -74,7 +80,7 @@ const TXT = (() => {
     ['qty', new RegExp(NUM + '\\s?(?:' + UNITS + ')(?![\\p{L}\\p{N}])', 'giu')],
     ['num', new RegExp('(?<![\\p{L}\\d])' + NUM, 'gu')]
   ];
-  const TYPE = { text: 'Text', url: 'URL', email: 'Email', ip: 'IP', date: 'Date', time: 'Time', phone: 'Phone', hashtag: 'Hashtag', mention: 'Mention', id: 'ID', money: 'Amount', percent: 'Percent', qty: 'Quantity', num: 'Number' };
+  const TYPE = { card: 'Card number', uuid: 'UUID', iban: 'IBAN', coord: 'Coordinates', color: 'Colour', version: 'Version', text: 'Text', url: 'URL', email: 'Email', ip: 'IP', date: 'Date', time: 'Time', phone: 'Phone', hashtag: 'Hashtag', mention: 'Mention', id: 'ID', money: 'Amount', percent: 'Percent', qty: 'Quantity', num: 'Number' };
   const BOILER = /^(sent from my|unsubscribe|click here|view (this )?in (your )?browser|all rights reserved|copyright|©|privacy policy|terms (of|&) (use|service)|we use cookies|accept (all )?cookies|follow us|share this|advertisement|sponsored|read more$|skip to (main )?content|back to top|page \d+ (of|\/) \d+$|loading\.*$|show more$|reply$|like$|forwarded message)/i;
   const KV = /^([\p{L}][\p{L}\p{N} _.\/()#&'-]{0,40}?)\s*[:=]\s*(\S.*)$/u;
 
@@ -82,6 +88,19 @@ const TXT = (() => {
   const numIn = s => (s.match(new RegExp(NUM)) || [''])[0];
   const fmt = v => Number.isFinite(v) ? +v.toPrecision(8) : '';
   const isoDate = s => { if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s; if (/[a-z]/i.test(s)) { const d = new Date(s.replace(/(\d)(st|nd|rd|th)/i, '$1').replace(',', '')); if (!isNaN(d)) return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); } return s; };
+
+  const luhn = s => { const d = s.replace(/\D/g, ''); let t = 0; for (let i = 0; i < d.length; i++) { let n = +d[d.length - 1 - i]; if (i % 2) { n *= 2; if (n > 9) n -= 9; } t += n; } return t % 10 === 0; };
+  const mod97 = s => { const r = s.replace(/\s/g, ''), x = (r.slice(4) + r.slice(0, 4)).replace(/[A-Z]/g, c => c.charCodeAt(0) - 55); let m = 0; for (const c of x) m = (m * 10 + +c) % 97; return m === 1; };
+  const realDate = s => { const iso = isoDate(s), m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return null; const d = new Date(+m[1], m[2] - 1, +m[3]); return d.getMonth() === m[2] - 1 && d.getDate() === +m[3]; };
+  function validate(type, raw) {
+    if (type === 'card') return luhn(raw) ? 'Luhn checksum ok' : 'fails Luhn';
+    if (type === 'iban') return mod97(raw) ? 'mod-97 ok' : 'fails mod-97';
+    if (type === 'ip') return raw.split('.').every(o => +o <= 255) ? 'valid octets' : 'octet > 255';
+    if (type === 'email') return /^[^.][\w.+-]*[^.]@[\w-]+(\.[\w-]+)*\.[a-z]{2,}$/i.test(raw) && !raw.includes('..') ? 'well-formed' : 'malformed';
+    if (type === 'date') { const v = realDate(raw); return v === null ? 'ambiguous' : v ? 'calendar-valid' : 'impossible date'; }
+    if (type === 'coord') { const [a, b] = raw.split(',').map(Number); return Math.abs(a) <= 90 && Math.abs(b) <= 180 ? 'in range' : 'out of range'; }
+    return '';
+  }
 
   function unitOf(raw) { const n = numIn(raw); return [n, raw.slice(raw.indexOf(n) + n.length).trim().toLowerCase().replace(/\s+/g, ' ')]; }
   function si(raw) {
@@ -169,6 +188,18 @@ const TXT = (() => {
     return t.head.map((_, i) => { const c = {}; let n = 0; t.rows.forEach(r => { const v = String(r[i] ?? '').trim(); if (!v) return; n++; const tk = tokenize(v), ty = tk.length === 1 ? tk[0].type : tk.length ? 'mixed' : ''; c[ty] = (c[ty] || 0) + 1; }); const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return top && top[1] >= n * .6 && TYPE[top[0]] ? TYPE[top[0]] : ''; });
   }
 
+  function colStats(t) {
+    const out = [];
+    t.head.forEach((h, i) => {
+      const raw = t.rows.map(r => String(r[i] ?? '').trim()).filter(Boolean), nums = raw.map(v => /^-?[\d.,]+$/.test(v) ? parseNum(v) : NaN).filter(Number.isFinite);
+      if (nums.length < 3 || nums.length < raw.length * .8) return;
+      const s = [...nums].sort((a, b) => a - b), med = s[s.length >> 1], mad = [...s.map(v => Math.abs(v - med))].sort((a, b) => a - b)[s.length >> 1] || 0;
+      const outl = mad ? nums.filter(v => Math.abs(v - med) / (1.4826 * mad) > 3.5) : [];
+      out.push(h + ': min ' + fmt(s[0]) + ' · median ' + fmt(med) + ' · max ' + fmt(s[s.length - 1]) + ' · sum ' + fmt(nums.reduce((a, b) => a + b, 0)) + (outl.length ? ' · outliers ' + outl.map(fmt).join(', ') : ''));
+    });
+    return out;
+  }
+
   function analyze(src) {
     const { kept, removed, blank, html, brk } = clean(src);
     const toks = kept.map(tokenize), used = new Set(), tables = [];
@@ -224,13 +255,14 @@ const TXT = (() => {
       const head = dedupe(['Label', ...typed.flatMap(t => expand(t).map(([suf]) => TYPE[t.type] + suf))]);
       tables.push(dropEmpty({ title: 'Similar lines', pattern: k.split(' ').map(x => TYPE[x]).join(' · ') + ' with varying labels — ' + g.length + ' lines', head, rows: g.map(r => [r.t.filter(t => t.type === 'text').map(t => t.raw).join(' '), ...r.t.filter(t => t.type !== 'text').flatMap(t => expand(t).map(x => x[1]))]) }));
     });
-    tables.forEach(t => t.types = colTypes(t));
+    tables.forEach(t => { t.types = colTypes(t); t.stats = colStats(t); });
     const ent = new Map(), dims = {};
     toks.forEach((ts, li) => ts.forEach(t => {
       if (t.type === 'qty') { const s = si(t.raw); if (s.dim) dims[s.dim] = (dims[s.dim] || 0) + 1; }
       if (t.type === 'text' || t.type === 'num') return;
       const norm = t.type === 'money' ? money(t.raw).join(' ') : t.type === 'qty' ? si(t.raw).v : t.type === 'date' ? isoDate(t.raw) : t.type === 'email' || t.type === 'url' ? t.raw.toLowerCase() : t.raw;
-      const key = t.type + '|' + norm, e = ent.get(key) || { type: TYPE[t.type], raw: t.raw, norm, count: 0, lines: [] };
+      if (t.type === 'card' && !luhn(t.raw)) return;
+      const key = t.type + '|' + norm, e = ent.get(key) || { type: TYPE[t.type], raw: t.raw, norm, check: validate(t.type, t.raw), count: 0, lines: [] };
       e.count++; if (e.lines.length < 8) e.lines.push(li + 1); ent.set(key, e);
     }));
     const prose = kept.filter((l, i) => !used.has(i) && toks[i].every(t => t.type === 'text'));
@@ -248,14 +280,14 @@ function extractText() {
   if (!a.kept.length) { out.innerHTML = '<div class="card"><p>Nothing usable found.</p></div>'; return; }
   const ec = {}; a.entities.forEach(e => ec[e.type] = (ec[e.type] || 0) + e.count);
   txtTables = [...a.tables];
-  if (a.entities.length) txtTables.push({ title: 'Entities', pattern: a.entities.length + ' unique values across all lines', head: ['Type', 'Raw', 'Normalized', 'Count', 'Lines'], rows: a.entities.sort((x, y) => x.type.localeCompare(y.type) || y.count - x.count).map(e => [e.type, e.raw, e.norm, e.count, e.lines.join(', ')]), types: [] });
+  if (a.entities.length) txtTables.push({ title: 'Entities', pattern: a.entities.length + ' unique values across all lines', head: ['Type', 'Raw', 'Normalized', 'Validation', 'Count', 'Lines'], rows: a.entities.sort((x, y) => x.type.localeCompare(y.type) || y.count - x.count).map(e => [e.type, e.raw, e.norm, e.check || '', e.count, e.lines.join(', ')]), types: [] });
   const chips = [
     ...a.tables.map((t, i) => '<a class="chip" href="#ttable-' + i + '">' + esc(t.title) + ' <b>' + t.rows.length + '</b></a>'),
     ...Object.entries(ec).map(([k, v]) => '<span class="chip">' + k + ' <b>' + v + '</b></span>'),
     ...Object.entries(a.dims).map(([k, v]) => '<span class="chip">' + k + ' <b>' + v + '</b></span>')
   ].join('');
   const removedN = a.removed.length;
-  const card = (t, i) => '<article class="card ttable" id="ttable-' + i + '"><div class="thead"><div><h3>' + esc(t.title) + '</h3><p>' + esc(t.pattern) + ' · ' + t.rows.length + ' rows</p></div><div class="row"><button class="btn ghost sm" data-csv="' + i + '">CSV</button><button class="btn ghost sm" data-tsv="' + i + '">Copy</button></div></div><div class="tablewrap tall"><table><thead><tr>' + t.head.map((h, j) => '<th>' + esc(h) + (t.types && t.types[j] && t.types[j] !== h ? '<small>' + t.types[j] + '</small>' : '') + '</th>').join('') + '</tr></thead><tbody>' + t.rows.slice(0, 1000).map(r => '<tr>' + t.head.map((_, j) => '<td>' + esc(r[j] ?? '') + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></article>';
+  const card = (t, i) => '<article class="card ttable" id="ttable-' + i + '"><div class="thead"><div><h3>' + esc(t.title) + '</h3><p>' + esc(t.pattern) + ' · ' + t.rows.length + ' rows</p></div><div class="row"><button class="btn ghost sm" data-csv="' + i + '">CSV</button><button class="btn ghost sm" data-tsv="' + i + '">Copy</button></div></div><div class="tablewrap tall"><table><thead><tr>' + t.head.map((h, j) => '<th>' + esc(h) + (t.types && t.types[j] && t.types[j] !== h ? '<small>' + t.types[j] + '</small>' : '') + '</th>').join('') + '</tr></thead><tbody>' + t.rows.slice(0, 1000).map(r => '<tr>' + t.head.map((_, j) => '<td>' + esc(r[j] ?? '') + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>' + (t.stats && t.stats.length ? '<ul class="stats">' + t.stats.map(s => '<li>' + esc(s) + '</li>').join('') + '</ul>' : '') + '</article>';
   out.innerHTML = '<div class="card"><h4>Recognized patterns</h4><div class="chips">' + (chips || '<span class="chip">No structure found</span>') + '</div><p class="tstat">' + a.kept.length + ' clean lines · ' + removedN + ' junk removed' + (a.html ? ' · HTML stripped on ' + a.html + ' lines' : '') + ' · ' + a.blank + ' blank lines</p></div>' + txtTables.map(card).join('') + (a.prose.length ? '<details class="card"><summary>Unstructured text lines (' + a.prose.length + ')</summary><ul class="drivers">' + a.prose.slice(0, 200).map(l => '<li>' + esc(l) + '</li>').join('') + '</ul></details>' : '') + (removedN ? '<details class="card"><summary>Removed as junk (' + removedN + ')</summary><div class="tablewrap"><table><thead><tr><th>Line</th><th>Reason</th></tr></thead><tbody>' + a.removed.slice(0, 300).map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td></tr>').join('') + '</tbody></table></div></details>' : '');
 }
 
@@ -270,6 +302,6 @@ $('#text-out').addEventListener('click', e => {
 });
 $('#text-run').onclick = extractText;
 $('#text-sample').onclick = () => {
-  $('#text-input').value = 'ORDER SUMMARY\n=================\nItem  Qty  Price\nOrganic apples - 3 kg - $4.50\nWhole milk - 2 L - $3.20\nRice bag - 5 kg - $12.00\nOlive oil - 750 ml - €9.90\n-----------------\nOrder ID: INV-2026-0042\nDate: Oct 3, 2026\nContact: support@freshmart.example\nDelivery: 45 min\nTotal = $29.60\nSent from my iPhone\nOrganic apples - 3 kg - $4.50\n\nName: Alice Chen\nAge: 34\nCity: Berlin\n\nName: Omar Haddad\nAge: 29\nCity: Cairo\n\nServer 10.0.0.12 responded in 120 ms at 14:02\nServer 10.0.0.19 responded in 340 ms at 14:05\n<p>Unsubscribe</p>';
+  $('#text-input').value = 'ORDER SUMMARY\n=================\nItem  Qty  Price\nOrganic apples - 3 kg - $4.50\nWhole milk - 2 L - $3.20\nRice bag - 5 kg - $12.00\nOlive oil - 750 ml - €9.90\n-----------------\nOrder ID: INV-2026-0042\nDate: Oct 3, 2026\nContact: support@freshmart.example\nDelivery: 45 min\nTotal = $29.60\nSent from my iPhone\nOrganic apples - 3 kg - $4.50\n\nName: Alice Chen\nAge: 34\nCity: Berlin\n\nName: Omar Haddad\nAge: 29\nCity: Cairo\n\nServer 10.0.0.12 responded in 120 ms at 14:02\nServer 10.0.0.19 responded in 340 ms at 14:05\nServer 10.0.0.23 responded in 135 ms at 14:09\nServer 10.0.0.31 responded in 4100 ms at 14:12\nPay to IBAN GB82 WEST 1234 5698 7654 32 by 2026-02-30\nCard on file 4111 1111 1111 1111\nTracking 3f2c9a1e-7b4d-4c8a-9e21-5a6b7c8d9e0f\n<p>Unsubscribe</p>';
   extractText();
 };

@@ -26,12 +26,18 @@ const REF = {
   size: ['Native output sizes of SD/SDXL/DALL·E/Midjourney (multiples of 64)', 'https://arxiv.org/abs/2307.01952'],
   audio: ['ASVspoof challenge, spectral artefacts of synthetic speech', 'https://www.asvspoof.org/'],
   lossy: ['MP3/AAC encoders low-pass at ~16–19 kHz (LAME docs)', 'https://lame.sourceforge.io/'],
-  name: ['Filename is user-editable — weak hint only', '']
+  name: ['Filename is user-editable — weak hint only', ''],
+  cose: ['RFC 9052, CBOR Object Signing and Encryption (COSE)', 'https://www.rfc-editor.org/rfc/rfc9052'],
+  qt: ['Kee, Johnson, Farid 2011, Digital image authentication from JPEG headers', 'https://doi.org/10.1109/TIFS.2011.2128309'],
+  dq: ['Lukáš & Fridrich 2003, Estimation of primary quantization matrix in double compressed JPEG images', 'https://www.ws.binghamton.edu/fridrich/Research/Doublecompression.pdf'],
+  align: ['Bianchi & Piva 2012, Image forgery localization via block-grained analysis of JPEG artifacts', 'https://doi.org/10.1109/TIFS.2012.2187516'],
+  temporal: ['Mandelli et al. 2020, Source camera model identification for videos & PRNU across frames', 'https://arxiv.org/abs/2007.07592']
 };
 
 const REF_GROUPS = [
   ['Provenance & watermarks', [
-    [REF.c2pa, 'C2PA manifest, claim generator, software tag', 'Strong when an AI vendor is declared; signature not verified here'],
+    [REF.c2pa, 'C2PA manifest parsing, assertions, content hash', 'JUMBF boxes are parsed and the data hash is recomputed over the file'],
+    [REF.cose, 'C2PA signature check', 'COSE_Sign1 signature verified with WebCrypto against the embedded certificate'],
     [REF.iptc, 'IPTC DigitalSourceType', 'Strong: publisher-declared AI or capture source'],
     [REF.synthid, 'SynthID mention', 'Invisible watermark; vendor detector required'],
     [['OpenAI, C2PA in ChatGPT images', 'https://help.openai.com/en/articles/8912793-c2pa-in-chatgpt-images'], 'OpenAI vendor match', 'Explains how metadata is stripped by screenshots/uploads'],
@@ -44,14 +50,19 @@ const REF_GROUPS = [
     [REF.spec, 'Spectral peak (residual FFT)', 'Upsampling layers create periodic frequency spikes'],
     [REF.diff, 'Kurtosis, flat-area ratio, saturation, video duration', 'Diffusion outputs carry distinctive residual statistics'],
     [['Ojha et al. 2023, Towards universal fake image detectors', 'https://arxiv.org/abs/2302.10174'], 'Overall approach', 'Shows hand-crafted cues generalise poorly — why reliability is shown'],
+    [['Liang et al. 2023, GPT detectors are biased against non-native English writers', 'https://arxiv.org/abs/2304.02819'], 'Comparison table', 'Why the text tab does not score AI authorship'],
     [REF.size, 'Dimensions', 'Latent grids yield multiples of 64 and fixed native sizes']
   ]],
   ['Compression & editing', [
-    [REF.jpeg, 'JPEG quality, 8-px block periodicity, screenshot marker', 'Recompression masks generator traces → lowers reliability'],
+    [REF.jpeg, 'JPEG ghost map, 8-px block periodicity, screenshot marker', 'Recompression masks generator traces → lowers reliability'],
+    [REF.qt, 'Quantization table origin, IJG quality fit', 'Cameras and software write different tables; a mismatch with EXIF reveals re-saving'],
+    [REF.dq, 'Double quantization in DCT histograms', 'A second compression leaves periodic gaps in coefficient histograms'],
+    [REF.align, '8×8 grid alignment', 'Coefficients locked to a shifted grid mean crop or shift after compression'],
     [REF.ela, 'Error level analysis map', 'Uneven re-save error reveals edited regions']
   ]],
   ['Audio', [
     [REF.audio, 'Spectral flatness, loudness variation, stereo correlation', 'Synthetic speech/music artefacts'],
+    [REF.temporal, 'Video: noise carry-over, texture shimmer, flicker', 'Real sensors repeat a fixed noise pattern from frame to frame; generators re-synthesise it'],
     [REF.lossy, 'Bandwidth cutoff', 'Lossy encoders low-pass the band, erasing evidence'],
     [['Afchar et al. 2024, Detecting music deepfakes is easy but actually hard', 'https://arxiv.org/abs/2405.04181'], 'Overall audio approach', 'Why audio reliability is capped at 60%']
   ]],
@@ -93,11 +104,12 @@ function scanMeta(buf, fname) {
   info.format = hex.startsWith('ffd8') ? 'JPEG' : hex.startsWith('89504e47') ? 'PNG' : t.slice(8, 12) === 'WEBP' ? 'WebP' : /ftyp(heic|heix|mif1|avif)/.test(t.slice(0, 32)) ? 'HEIF/AVIF' : t.slice(4, 8) === 'ftyp' ? 'MP4/MOV' : t.startsWith('ID3') || hex.startsWith('fffb') ? 'MP3' : t.startsWith('RIFF') ? 'WAV/RIFF' : t.startsWith('fLaC') ? 'FLAC' : t.startsWith('OggS') ? 'Ogg' : t.startsWith('GIF8') ? 'GIF' : 'Other';
   const c2pa = /c2pa|jumbf|jumb|cbor|contentauth/i.test(t) && /c2pa/i.test(t);
   if (c2pa) {
+    info.c2paHeur = true;
     const gen = (t.match(/claim_generator[^\w]{0,6}([\x20-\x7e]{3,60})/) || [])[1] || '';
     const who = GEN.find(g => g[1].test(t.slice(Math.max(0, t.indexOf('c2pa') - 2000), t.indexOf('c2pa') + 60000)));
     const ai = /trainedAlgorithmicMedia|compositeWithTrainedAlgorithmicMedia|c2pa\.created[\s\S]{0,400}algorithm/i.test(t);
-    out.push(sig('C2PA Content Credentials', (gen || 'manifest present') + (who ? ' · ' + who[0] : ''), ai || who ? 'ai' : 'neutral', ai || who ? 45 : 5, ai ? 'Manifest declares an AI-generated source' : who ? 'Manifest names an AI vendor' : 'Provenance manifest exists; signer not verified', REF.c2pa));
-    if (ai || who) info.strong = true;
+    out.push(sig('C2PA (string scan)', (gen || 'manifest present') + (who ? ' · ' + who[0] : ''), ai || who ? 'ai' : 'neutral', ai || who ? 45 : 5, ai ? 'Manifest declares an AI-generated source' : who ? 'Manifest names an AI vendor' : 'Provenance manifest exists; signer not verified', REF.c2pa));
+    if (ai || who) { info.strong = true; info.strongHeur = true; }
   }
   const dst = t.match(/digitalsourcetype[^\w]{0,40}[^"<]*?(trainedAlgorithmicMedia|compositeWithTrainedAlgorithmicMedia|algorithmicMedia|compositeSynthetic|digitalCapture|computationalCapture|screenCapture)/i);
   if (dst) {
@@ -110,30 +122,46 @@ function scanMeta(buf, fname) {
     out.push(sig('Generator text chunk', params[2].slice(0, 120).replace(/\n/g, ' ') + '…', 'ai', 45, 'Diffusion settings embedded (steps/sampler/seed)', REF.diff));
     info.strong = true;
   }
-  const soft = (t.match(/(?:Software|CreatorTool|creator_tool|encoder|TSSE|TENC)[^\x20-\x7e]{0,8}([\x20-\x7e]{3,50})/i) || [])[1];
+  const soft = ((t.match(/(?:Software|CreatorTool|creator_tool|encoder|TSSE|TENC)[^\x20-\x7e]{0,8}([\x20-\x7e]{3,50})/i) || [])[1] || '').replace(/^[^\w]+|["'>]+$|"/g, '').trim();
   if (soft) {
     info.software = soft.trim();
     const g = GEN.slice(0, -1).find(x => x[1].test(soft));
-    out.push(sig('Software / encoder tag', soft.trim(), g ? 'ai' : /photoshop|lightroom|gimp|snapseed|picsart|canva/i.test(soft) ? 'proc' : 'neutral', g ? 35 : 0, g ? 'Tag names ' + g[0] : 'Editing/encoding software', REF.c2pa));
+    out.push(sig('Software / encoder tag', soft.trim(), g ? 'ai' : /photoshop|lightroom|gimp|snapseed|picsart|canva|capture one|darktable|affinity|pixelmator|luminar|dxo/i.test(soft) ? 'proc' : 'neutral', g ? 35 : 0, g ? 'Tag names ' + g[0] : 'Editing/encoding software', REF.c2pa));
     if (g) info.strong = true;
   }
   const cam = t.match(CAMERA);
-  if (cam) { info.camera = cam[0].replace(/[^\x20-\x7e]/g, '').trim(); out.push(sig('Camera make/model', info.camera, 'real', -18, 'EXIF names a capture device (can be forged)', REF.prnu)); }
+  if (cam) { info.camera = cam[0].replace(/[^\x20-\x7e]/g, '').trim(); out.push(sig('Camera make/model', info.camera, 'real', -12, 'EXIF names a capture device (can be forged)', REF.prnu)); }
   const exif = t.includes('Exif\0\0');
   if (!exif && !cam && /JPEG|HEIF|WebP|PNG/.test(info.format)) out.push(sig('EXIF block', 'absent', 'proc', 0, 'Missing: typical for screenshots, social media, AI output', REF.c2pa));
   if (/Screenshot|screencapture|screenCapture/i.test(t + fname)) { info.screenshot = true; out.push(sig('Screenshot marker', 'yes', 'proc', 0, 'Pixel traces unreliable after screen capture', REF.jpeg)); }
   const lens = /FocalLength|ExposureTime|FNumber|ISOSpeed/.test(t) || /\x82\x9a|\x82\x9d|\x88\x27/.test(t);
   if (exif && lens) out.push(sig('Exposure fields', 'present', 'real', -8, 'Exposure/ISO/aperture tags exist', REF.prnu));
   const fn = GEN.find(g => g[1].test(fname));
-  if (fn) out.push(sig('Filename hint', fname, 'ai', 8, 'Name contains "' + fname.match(fn[1])[0] + '" → ' + fn[0] + '. User-editable, weak', REF.name));
+  if (fn) out.push(sig('Filename hint', fname, 'neutral', 0, 'Name contains "' + fname.match(fn[1])[0] + '" → ' + fn[0] + '. User-editable, so it is shown but not scored', REF.name));
   if (/synthid/i.test(t)) out.push(sig('SynthID mention', 'string found', 'ai', 20, 'Text reference only; watermark itself is invisible', REF.synthid));
-  if (info.format === 'JPEG') {
-    const i = t.indexOf('\xFF\xDB');
-    if (i > 0) { let s = 0; for (let k = 0; k < 64; k++) s += t.charCodeAt(i + 5 + k); info.quality = clamp(Math.round(100 - s / 64 * 1.55), 1, 100); }
-    const dqt = (t.match(/\xFF\xDB/g) || []).length;
-    out.push(sig('JPEG quality (est.)', (info.quality || '?') + ' · ' + dqt + ' DQT', 'proc', 0, info.quality < 85 ? 'Strong compression weakens pixel evidence' : 'Mild compression', REF.jpeg));
-  }
   return { list: out, info };
+}
+
+async function provenance(f, u, meta) {
+  let r = null;
+  try { r = u ? await C2PA.read(u) : null; if (!r && /MP4|HEIF/.test(meta.info.format)) r = await C2PA.readBmffFile(f); } catch (e) { r = null; }
+  if (!r) return;
+  const I = meta.info;
+  meta.list = meta.list.filter(x => x.name !== 'C2PA (string scan)' && !(r.sourceTypes.length && x.name === 'IPTC DigitalSourceType') && !(x.name === 'Software / encoder tag' && !/^[\w .,()\/-]+$/.test(x.value)));
+  if (I.strongHeur) { I.strong = false; I.strongHeur = false; }
+  const S = r.sig.status, H = r.hash.status, ok = S === 'valid', tampered = S === 'invalid' || H === 'mismatch';
+  const who = GEN.slice(0, -1).find(g => g[1].test(r.generator + ' ' + (r.signer.subject ? (r.signer.subject.O || '') + ' ' + (r.signer.subject.CN || '') : '') + ' ' + r.actions.join(' ')));
+  const signer = r.signer.subject ? [r.signer.subject.CN, r.signer.subject.O].filter(Boolean).join(' · ') : '';
+  const L = meta.list;
+  L.push(sig('C2PA manifest', (r.generator || r.label) + ' · ' + r.manifests + ' manifest' + (r.manifests > 1 ? 's' : '') + (r.ingredients ? ' · ' + r.ingredients + ' ingredient' + (r.ingredients > 1 ? 's' : '') : ''), 'neutral', 0, 'Parsed from JUMBF: ' + r.assertions.length + ' assertions' + (r.manifests > 1 ? '. Several manifests mean the file was edited after the first signature' : ''), REF.c2pa));
+  L.push(sig('C2PA signature', S + ' · ' + (r.sig.alg || '?') + (signer ? ' · ' + signer : '') + (r.signer.from ? ' · cert ' + r.signer.from + ' → ' + r.signer.to : ''), S === 'invalid' ? 'proc' : 'neutral', 0, S === 'valid' ? 'Cryptographically valid for the embedded certificate. The certificate chain is not checked against the C2PA trust list, so the signer name is a claim' + (r.signer.selfSigned ? ' (self-signed)' : '') : S === 'invalid' ? 'Signature does not match the claim: manifest was altered' : 'Could not verify in this browser (' + S + ')', REF.cose));
+  L.push(sig('C2PA content hash', H + (r.hash.alg ? ' · ' + r.hash.alg : ''), H === 'mismatch' ? 'proc' : 'neutral', 0, H === 'match' ? 'Pixels and bytes are exactly what was signed' : H === 'mismatch' ? 'File bytes changed after signing' : H === 'unchecked' ? 'Box-based hash (video/BMFF) is not recomputed here' : 'No data-hash assertion', REF.c2pa));
+  if (r.actions.length) L.push(sig('C2PA actions', r.actions.slice(0, 6).join(' | '), 'neutral', 0, 'Edit history recorded by the signing tool', REF.c2pa));
+  const wAI = tampered ? 15 : ok && H === 'match' ? 50 : ok ? 45 : 35;
+  if (r.ai) { L.push(sig('C2PA digitalSourceType', r.sourceTypes.join(', '), 'ai', wAI, 'Signed manifest declares AI-generated content' + (tampered ? ', but the manifest or file was altered' : ''), REF.iptc)); I.strong = !tampered; }
+  else if (who) { L.push(sig('C2PA AI vendor', who[0], 'ai', Math.round(wAI * .7), 'Manifest generator or signer belongs to an AI vendor', REF.c2pa)); I.strong = !tampered; }
+  else if (r.capture) L.push(sig('C2PA digitalSourceType', r.sourceTypes.join(', '), 'real', ok ? -25 : -10, ok ? 'Signed manifest declares a camera capture' : 'Declares a capture, but the signature is unverified', REF.iptc));
+  I.verified = ok && !tampered; I.tampered = tampered;
 }
 
 function gray(d, w, h) { const g = new Float32Array(w * h); for (let i = 0; i < w * h; i++) g[i] = d[i * 4] * .299 + d[i * 4 + 1] * .587 + d[i * 4 + 2] * .114; return g; }
@@ -173,19 +201,47 @@ function pixelSignals(ctx, w, h, natW, natH) {
   let peak = 0, peakAt = 0;
   if (spec[1]) { for (let k = 8; k < N / 2 - 2; k++) { const loc = (spec[k - 3] + spec[k - 2] + spec[k + 2] + spec[k + 3]) / 4, r = spec[k] / (loc + 1e-9); if (r > peak) { peak = r; peakAt = k; } } }
   const chroma = Math.min(rn, gn, bn) / Math.max(rn, gn, bn);
+  const hist = new Uint32Array(256), colors = new Set();
+  for (let i = 0; i < w * h; i++) { hist[d[i * 4 + 1]]++; if (i % 3 === 0) colors.add((d[i * 4] >> 2) << 12 | (d[i * 4 + 1] >> 2) << 6 | d[i * 4 + 2] >> 2); }
+  let lo = 0, hi = 255; while (lo < 255 && !hist[lo]) lo++; while (hi > 0 && !hist[hi]) hi--;
+  let gaps = 0; for (let v = lo + 1; v < hi; v++) if (!hist[v] && hist[v - 1] && hist[v + 1]) gaps++;
+  const uniq = colors.size / Math.min(262144, Math.ceil(w * h / 3));
+  const B = 8, seen = new Map(); let clones = 0, blocks = 0;
+  for (let y = 0; y + B <= h; y += 4) for (let x = 0; x + B <= w; x += 4) {
+    let key = '', mn = 255, mx = 0;
+    for (let yy = 0; yy < B; yy += 2) for (let xx = 0; xx < B; xx += 2) { const v = g[(y + yy) * w + x + xx]; mn = Math.min(mn, v); mx = Math.max(mx, v); key += String.fromCharCode(v >> 3); }
+    if (mx - mn < 24) continue; blocks++;
+    const p = seen.get(key); if (p && Math.hypot(p[0] - x, p[1] - y) > 24) clones++; else if (!p) seen.set(key, [x, y]);
+  }
+  const cloneR = blocks ? clones / blocks : 0;
+  const M = 256, s2d = new Float32Array(M * M);
+  if (w >= M && h >= M) {
+    const R = Array.from({ length: M }, (_, y) => { const re = new Float32Array(M), im = new Float32Array(M); for (let x = 0; x < M; x++) re[x] = res[(oy + y) * w + ox + x]; fft(re, im); return [re, im]; });
+    for (let x = 0; x < M; x++) { const re = new Float32Array(M), im = new Float32Array(M); for (let y = 0; y < M; y++) { re[y] = R[y][0][x]; im[y] = R[y][1][x]; } fft(re, im); for (let y = 0; y < M; y++) s2d[((y + M / 2) % M) * M + (x + M / 2) % M] = Math.log1p(Math.hypot(re[y], im[y])); }
+  }
   const L = [];
   const lowNoise = sd < 1.6, richNoise = sd > 4;
-  L.push(sig('Noise residual σ', sd.toFixed(2), lowNoise ? 'ai' : richNoise ? 'real' : 'neutral', lowNoise ? 10 : richNoise ? -10 : 0, lowNoise ? 'Too clean for a sensor at this size' : richNoise ? 'Sensor-like grain present' : 'Mid-range', REF.prnu));
+  L.push(sig('Noise residual σ', sd.toFixed(2), lowNoise ? 'ai' : richNoise ? 'real' : 'neutral', lowNoise ? 7 : richNoise ? -8 : 0, lowNoise ? 'Too clean for a sensor at this size' : richNoise ? 'Sensor-like grain present' : 'Mid-range', REF.prnu));
   L.push(sig('Residual kurtosis', kurt.toFixed(1), kurt < 4 ? 'ai' : kurt > 12 ? 'real' : 'neutral', kurt < 4 ? 6 : kurt > 12 ? -5 : 0, kurt < 4 ? 'Near-Gaussian, smoothed noise' : kurt > 12 ? 'Heavy-tailed, natural texture/shot noise' : 'Typical', REF.diff));
   L.push(sig('Noise uniformity (CV)', noiseCV.toFixed(2), noiseCV > 3 ? 'ai' : noiseCV < 1.2 ? 'real' : 'neutral', noiseCV > 3 ? 6 : noiseCV < 1.2 ? -6 : 0, noiseCV > 3 ? 'Detail concentrated, smooth elsewhere' : noiseCV < 1.2 ? 'Even sensor noise across frame' : 'Mixed', REF.prnu));
-  L.push(sig('Flat-area ratio', (flat / n * 100).toFixed(0) + '%', flat / n > .45 ? 'ai' : 'neutral', flat / n > .45 ? 7 : 0, flat / n > .45 ? 'Large perfectly smooth zones' : 'Normal', REF.diff));
+  L.push(sig('Flat-area ratio', (flat / n * 100).toFixed(0) + '%', flat / n > .7 ? 'ai' : 'neutral', flat / n > .7 ? 4 : 0, flat / n > .7 ? 'Large perfectly smooth zones' : 'Normal range for photos and graphics', REF.diff));
   L.push(sig('Spectral peak (residual FFT)', spec[1] ? peak.toFixed(2) + ' @ f=' + (peakAt / N).toFixed(3) : 'image too small', peak > 1.35 && Math.abs(peakAt / N - .125) > .01 ? 'ai' : peak > 1.35 ? 'proc' : 'neutral', peak > 1.35 && Math.abs(peakAt / N - .125) > .01 ? 12 : 0, peak > 1.35 ? (Math.abs(peakAt / N - .125) <= .01 ? 'Peak at 1/8 = JPEG grid, not generator' : 'Periodic upsampling artefact') : 'No periodic grid', REF.spec));
   L.push(sig('CFA / channel noise correlation', chroma.toFixed(3), chroma > .93 ? 'ai' : chroma < .8 ? 'real' : 'neutral', chroma > .93 ? 5 : chroma < .8 ? -5 : 0, chroma > .93 ? 'Channels equally noisy: no demosaicing trace' : chroma < .8 ? 'Channel-specific noise, Bayer-like' : 'Ambiguous', REF.cfa));
   L.push(sig('8-px block periodicity', block.toFixed(2), block > 1.2 ? 'proc' : 'neutral', 0, block > 1.2 ? 'JPEG (re)compression grid present' : 'No strong grid', REF.jpeg));
-  L.push(sig('Mean saturation / clipping', (sat / n * 100).toFixed(0) + '% / ' + (clip / n * 100).toFixed(1) + '%', sat / n > .5 && clip / n < .002 ? 'ai' : 'neutral', sat / n > .5 && clip / n < .002 ? 3 : 0, 'Vivid colour without highlight clipping is a weak AI tell', REF.diff));
+  L.push(sig('Mean saturation / clipping', (sat / n * 100).toFixed(0) + '% / ' + (clip / n * 100).toFixed(1) + '%', 'neutral', 0, 'Measured for context only: style and grading drive this more than origin', REF.diff));
+  L.push(sig('Histogram comb gaps', gaps + ' empty levels', gaps > 6 ? 'proc' : 'neutral', 0, gaps > 6 ? 'Missing tone levels: contrast/levels edit or bit-depth stretch' : 'Continuous tone distribution', REF.ela));
+  L.push(sig('Colour diversity (18-bit)', (uniq * 100).toFixed(1) + '%', 'neutral', 0, uniq < .02 ? 'Very few distinct colours: graphic, palette or heavy quantisation' : 'Measured for context', REF.diff));
+  L.push(sig('Cloned regions (copy-move)', clones + ' of ' + blocks + ' textured blocks', cloneR > .01 ? 'proc' : 'neutral', 0, cloneR > .01 ? 'Identical textured blocks far apart: cloning, tiling or repeated patterns' : 'No duplicated texture found', REF.ela));
   const m64 = natW % 64 === 0 && natH % 64 === 0, std = [[1024, 1024], [1024, 1536], [1536, 1024], [1792, 1024], [1024, 1792], [832, 1216], [1216, 832], [896, 1152], [1152, 896], [768, 1344], [1344, 768], [512, 512], [2048, 2048], [1456, 816], [816, 1456]].some(([a, b]) => a === natW && b === natH);
-  L.push(sig('Dimensions', natW + '×' + natH, std ? 'ai' : m64 ? 'ai' : 'neutral', std ? 8 : m64 ? 3 : 0, std ? 'Exact native generator size' : m64 ? 'Multiple of 64 (latent grid)' : 'Not a typical generator size', REF.size));
-  return { L, res, sd };
+  L.push(sig('Dimensions', natW + '×' + natH, std ? 'ai' : 'neutral', std ? 6 : 0, std ? 'Exact native generator size' : m64 ? 'Multiple of 64 (latent grid)' : 'Not a typical generator size', REF.size));
+  return { L, res, sd, s2d: s2d[0] || s2d[1] ? s2d : null, clones };
+}
+
+function specMap(s) {
+  const M = 256, c = document.createElement('canvas'); c.width = c.height = M; const x = c.getContext('2d'), im = x.createImageData(M, M);
+  let mn = Infinity, mx = -Infinity; s.forEach(v => { mn = Math.min(mn, v); mx = Math.max(mx, v); });
+  for (let i = 0; i < s.length; i++) { const v = (s[i] - mn) / (mx - mn + 1e-9) * 255; im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; }
+  x.putImageData(im, 0, 0); return c.toDataURL('image/png');
 }
 
 function maps(img, ctx, w, h, res, sd) {
@@ -205,13 +261,15 @@ function maps(img, ctx, w, h, res, sd) {
 }
 
 function combine(list, info, cap) {
+  const px = list.filter(x => x.px && x.w), ai = px.filter(x => x.w > 0).length, real = px.filter(x => x.w < 0).length;
   let s = 50; list.forEach(x => s += x.w);
-  let rel = 70;
-  if (info.strong) rel = 92;
-  else { if (info.screenshot) rel -= 30; if (info.quality && info.quality < 85) rel -= 15; if (list.some(x => x.name === '8-px block periodicity' && x.dir === 'proc')) rel -= 10; if (cap) rel = Math.min(rel, cap); }
-  s = clamp(Math.round(s), 2, 98);
-  const label = info.strong && s > 70 ? 'Declared / tagged AI' : s >= 70 ? 'Leans AI' : s <= 30 ? 'Leans camera / natural' : 'Inconclusive';
-  return { score: s, rel: clamp(rel, 10, 95), label };
+  if (!info.strong) s = 50 + (s - 50) * (Math.abs(ai - real) >= 2 ? 1 : .5);
+  let rel = 35 + Math.min(30, Math.abs(ai - real) * 8);
+  if (info.strong) rel = info.verified ? 95 : 85;
+  else { if (info.screenshot) rel -= 25; if (info.quality && info.quality < 85) rel -= 12; if (info.double) rel -= 10; if (info.gridLost) rel -= 6; if (info.tampered) rel -= 10; if (cap) rel = Math.min(rel, cap); }
+  s = clamp(Math.round(s), info.strong ? 2 : 15, info.strong ? 98 : 85);
+  const label = info.strong && s > 70 ? 'Declared / tagged AI' : s >= 68 ? 'Leans AI' : s <= 32 ? 'Leans camera / natural' : 'Inconclusive';
+  return { score: s, rel: clamp(Math.round(rel), 10, 95), label, verified: !!info.verified };
 }
 
 const DIRL = { ai: '→ AI', real: '→ Camera', proc: '→ Processing', neutral: '· neutral' };
@@ -221,7 +279,7 @@ const entries = [], view = { v: 'all', t: 'all', sort: 'order', q: '' };
 const refCell = x => esc(x.why) + (x.ref && x.ref[1] ? '<small><a href="' + x.ref[1] + '" target="_blank" rel="noopener">' + esc(x.ref[0]) + '</a></small>' : '<small>' + esc(x.ref ? x.ref[0] : '') + '</small>');
 
 function checksTable(list) {
-  const groups = [['Provenance & metadata', list.filter(x => !x.px)], ['Pixel / signal analysis', list.filter(x => x.px)]];
+  const groups = [['Provenance & metadata', list.filter(x => !x.px && !x.jpg)], ['Compression forensics', list.filter(x => x.jpg)], ['Pixel / signal analysis', list.filter(x => x.px && !x.jpg)]];
   return '<div class="tablewrap"><table><thead><tr><th>Check</th><th>Value</th><th>Points to</th><th>Weight</th><th>Basis / reference</th></tr></thead><tbody>' + groups.filter(g => g[1].length).map(([t, a]) => '<tr class="grp"><td colspan="5">' + t + '</td></tr>' + a.map(x => '<tr><td>' + esc(x.name) + '</td><td>' + esc(x.value) + '</td><td class="to to-' + x.dir + '">' + DIRL[x.dir] + '</td><td>' + (x.w > 0 ? '+' : '') + x.w + '</td><td>' + refCell(x) + '</td></tr>').join('')).join('') + '</tbody></table></div>';
 }
 
@@ -230,7 +288,7 @@ function render(file, kind, list, r, extra, thumb) {
   const v = VCLS(r.label), type = kind.split(' ')[0];
   const el = document.createElement('details'); el.className = 'fcard v-' + v;
   const th = thumb ? '<img class="thumb" src="' + thumb + '" alt="">' : '<span class="thumb glyph">' + (type === 'Audio' ? '♪' : type === 'Video' ? '▶' : '!') + '</span>';
-  el.innerHTML = '<summary>' + th + '<span class="fmeta"><b>' + esc(file.name) + '</b><small>' + esc(kind) + ' · ' + (file.size / 1048576).toFixed(2) + ' MB' + (top[0] ? ' · ' + esc(top[0].name) + ' ' + DIRL[top[0].dir] : '') + '</small></span><span class="vpill">' + esc(r.label) + '</span><span class="fscore"><b>' + r.score + '%</b><small>reliability ' + r.rel + '%</small><span class="mini"><i style="width:' + r.score + '%"></i></span></span></summary><div class="fbody">' + (list.length ? '<h4>Main drivers</h4><ul class="drivers">' + (top.map(x => '<li><b>' + DIRL[x.dir] + '</b> ' + esc(x.name) + ': ' + esc(x.why) + '</li>').join('') || '<li>No decisive signal</li>') + '</ul>' : '') + (extra || '') + (list.length ? '<details class="checks" open><summary>All ' + list.length + ' checks</summary>' + checksTable(list) + '</details>' : '') + '</div>';
+  el.innerHTML = '<summary>' + th + '<span class="fmeta"><b>' + esc(file.name) + '</b><small>' + esc(kind) + ' · ' + (file.size / 1048576).toFixed(2) + ' MB' + (top[0] ? ' · ' + esc(top[0].name) + ' ' + DIRL[top[0].dir] : '') + '</small></span><span class="vpill">' + esc(r.label) + '</span><span class="fscore"><b>' + r.score + '%</b><small>reliability ' + r.rel + '%</small><span class="mini"><i style="width:' + r.score + '%"></i></span></span></summary><div class="fbody"><p class="honest">' + (r.label === 'Error' ? 'File could not be decoded.' : /Declared/.test(r.label) ? 'Based on an embedded provenance tag' + (r.verified ? ' with a valid signature' : '') + '. Tags can be stripped, but they are not guesses.' : 'Statistical estimate from measured signals, not proof. Without a provenance tag the score stays between 15 and 85.') + '</p>' + (list.length ? '<h4>Main drivers</h4><ul class="drivers">' + (top.map(x => '<li><b>' + DIRL[x.dir] + '</b> ' + esc(x.name) + ': ' + esc(x.why) + '</li>').join('') || '<li>No decisive signal</li>') + '</ul>' : '') + (extra || '') + (list.length ? '<details class="checks" open><summary>All ' + list.length + ' checks</summary>' + checksTable(list) + '</details>' : '') + '</div>';
   entries.push({ name: file.name, type, v, r, el, idx: entries.length, top: top[0] ? top[0].name + ' ' + DIRL[top[0].dir] : '' });
   $('#media-out').append(el); drawDash();
   return el;
@@ -264,15 +322,26 @@ $('#batch-csv').onclick = () => { const q = v => '"' + String(v ?? '').replace(/
 const fit = (w, h, m) => { const k = Math.min(1, m / Math.max(w, h)); return [Math.round(w * k), Math.round(h * k)]; };
 
 async function doImage(f) {
-  const buf = await f.arrayBuffer(), meta = scanMeta(buf, f.name);
+  const buf = await f.arrayBuffer(), u = new Uint8Array(buf), meta = scanMeta(buf, f.name);
+  await provenance(f, u, meta);
   const img = new Image(); img.src = URL.createObjectURL(f); await img.decode();
+  let jp = { L: [], maps: '' };
+  if (meta.info.format === 'JPEG') {
+    let src = img; try { src = await createImageBitmap(f, { imageOrientation: 'none' }); } catch (e) {}
+    try { jp = await JPG.analyze(src, u, meta.info); jp.L.forEach(x => x.jpg = true); } catch (e) {}
+  }
   const [w, h] = fit(img.naturalWidth, img.naturalHeight, 1024);
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(img, 0, 0, w, h);
   const px = pixelSignals(ctx, w, h, img.naturalWidth, img.naturalHeight); px.L.forEach(x => x.px = true);
-  const list = [...meta.list, ...px.L], r = combine(list, meta.info);
+  if (meta.info.sub && meta.info.sub !== '4:4:4') px.L.forEach(x => { if (x.name.startsWith('CFA')) Object.assign(x, { dir: 'neutral', w: 0, why: 'Not scored: ' + meta.info.sub + ' chroma subsampling erases demosaicing traces' }); });
+  const editor = meta.list.some(x => x.name === 'Software / encoder tag' && x.dir === 'proc');
+  if (editor) px.L.forEach(x => { if (x.name === 'Noise residual σ' && x.w > 0) Object.assign(x, { dir: 'neutral', w: 0, why: 'Not scored: the file passed through editing software, which usually applies noise reduction' }); });
+  if (img.naturalWidth > w * 1.5) px.L.forEach(x => { if (x.name === 'Noise residual σ' && x.w > 0) Object.assign(x, { dir: 'neutral', w: 0, why: 'Not scored: analysed at ' + w + 'px, and downscaling averages sensor noise away' }); });
+  const list = [...meta.list, ...jp.L, ...px.L], r = combine(list, meta.info);
   const [ela, nm] = await maps(img, ctx, w, h, px.res, px.sd);
-  render(f, 'Image · ' + meta.info.format, list, r, '<div class="maps"><figure><img src="' + img.src + '" alt="original"><figcaption>Original</figcaption></figure><figure><img src="' + ela + '" alt="ELA"><figcaption>Error level analysis: uneven bright patches = edits or pasted regions</figcaption></figure><figure><img src="' + nm + '" alt="noise"><figcaption>Noise residual: camera = even grain; AI = smooth with detail only on edges</figcaption></figure></div>', img.src);
+  const sp = px.s2d ? '<figure><img src="' + specMap(px.s2d) + '" alt="spectrum"><figcaption>2D residual spectrum: bright dots off-centre = periodic upsampling grid</figcaption></figure>' : '';
+  render(f, 'Image · ' + meta.info.format, list, r, '<div class="maps"><figure><img src="' + img.src + '" alt="original"><figcaption>Original</figcaption></figure><figure><img src="' + ela + '" alt="ELA"><figcaption>Error level analysis: uneven bright patches = edits or pasted regions</figcaption></figure><figure><img src="' + nm + '" alt="noise"><figcaption>Noise residual: camera = even grain; AI = smooth with detail only on edges</figcaption></figure>' + sp + jp.maps + '</div>', img.src);
 }
 
 async function doVideo(f) {
@@ -282,24 +351,41 @@ async function doVideo(f) {
   const [w, h] = fit(v.videoWidth, v.videoHeight, 512);
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const ctx = c.getContext('2d', { willReadFrequently: true });
-  const N = 8, fr = []; let prev = null, diffs = [];
+  await provenance(f, null, meta);
+  const N = 8, fr = [], resid = [], shimmer = [], lum = []; let prev = null, diffs = [];
+  const seek = t => new Promise(r => { v.onseeked = r; v.currentTime = Math.min(v.duration - .01, t); });
+  const grab = () => { ctx.drawImage(v, 0, 0, w, h); return gray(ctx.getImageData(0, 0, w, h).data, w, h); };
+  const residual = g => { const r = new Float32Array(g.length); for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; r[i] = g[i] - (g[i - 1] + g[i + 1] + g[i - w] + g[i + w]) / 4; } return r; };
   for (let i = 0; i < N; i++) {
-    v.currentTime = v.duration * (i + .5) / N; await new Promise(r => v.onseeked = r);
-    ctx.drawImage(v, 0, 0, w, h); fr.push(pixelSignals(ctx, w, h, v.videoWidth, v.videoHeight));
-    const g = gray(ctx.getImageData(0, 0, w, h).data, w, h);
+    const t = v.duration * (i + .5) / N;
+    await seek(t); const g = grab(); fr.push(pixelSignals(ctx, w, h, v.videoWidth, v.videoHeight));
+    const r1 = residual(g); resid.push(r1);
+    let lm = 0; for (let k = 0; k < g.length; k += 5) lm += g[k]; lum.push(lm / (g.length / 5));
+    await seek(t + 1 / 30); const g2 = grab(), r2 = residual(g2);
+    let a = 0, b = 0, n = 0; for (let k = w + 1; k < g.length - w - 1; k += 3) if (Math.abs(g[k] - g2[k]) < 1.5 && Math.abs(r1[k]) > 1) { a += Math.abs(r1[k] - r2[k]); b += Math.abs(r1[k]); n++; }
+    if (n > 500) shimmer.push(a / b);
     if (prev) { let s = 0; for (let k = 0; k < g.length; k += 7) s += Math.abs(g[k] - prev[k]); diffs.push(s / (g.length / 7)); } prev = g;
   }
+  const fpn = [];
+  resid.forEach((r, i) => { let ab = 0, aa = 0, bb = 0; for (let k = 0; k < r.length; k += 2) { let o = 0; resid.forEach((q, j) => { if (j !== i) o += q[k]; }); o /= N - 1; ab += r[k] * o; aa += r[k] * r[k]; bb += o * o; } fpn.push(ab / Math.sqrt(aa * bb + 1e-9)); });
+  const fp = fpn.sort((a, b) => a - b)[N >> 1];
+  const med = a => a.length ? [...a].sort((p, q) => p - q)[a.length >> 1] : null, sh = med(shimmer);
+  const lmM = lum.reduce((a, b) => a + b) / N, flick = Math.sqrt(lum.reduce((a, b) => a + (b - lmM) ** 2, 0) / N);
   const px = fr[0].L.map((x, j) => { const ws = fr.map(f => f.L[j].w), aw = Math.round(ws.reduce((a, b) => a + b) / N); return { ...x, value: fr.map(f => f.L[j].value).slice(0, 3).join(' | ') + '…', w: aw, dir: aw > 0 ? 'ai' : aw < 0 ? 'real' : x.dir, px: true }; }).filter(x => x.name !== 'Dimensions' && x.name !== 'Mean saturation / clipping');
   const sds = fr.map(f => f.sd), m = sds.reduce((a, b) => a + b) / N, cv = Math.sqrt(sds.reduce((a, b) => a + (b - m) ** 2, 0) / N) / (m + 1e-9);
   px.push({ ...sig('Noise stability across frames', cv.toFixed(3), cv < .04 ? 'ai' : 'neutral', cv < .04 ? 4 : 0, cv < .04 ? 'Noise level nearly frozen between shots' : 'Varies like real footage', REF.prnu), px: true });
   const dm = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-  px.push({ ...sig('Duration / motion', v.duration.toFixed(1) + 's · Δ' + dm.toFixed(1), v.duration <= 10.5 && v.duration > 3 ? 'ai' : 'neutral', v.duration <= 10.5 && v.duration > 3 ? 3 : 0, v.duration <= 10.5 ? 'Clip length matches common generator limits (5–10 s)' : 'Longer than typical generator output', REF.diff), px: true });
+  px.push({ ...sig('Fixed-pattern noise carry-over', fp.toFixed(3), fp > .06 ? 'real' : 'neutral', fp > .06 ? -5 : 0, fp > .06 ? 'The same noise pattern repeats across distant frames: consistent with a physical sensor' : 'No stable sensor pattern found. Generators show this, but so do heavy compression and moving cameras, so it is not scored', REF.temporal), px: true });
+  if (sh !== null) px.push({ ...sig('Texture shimmer (static areas, 1/30 s apart)', sh.toFixed(2), 'neutral', 0, sh > 1.2 ? 'Fine texture changes a lot between adjacent frames in still areas: re-synthesis or strong denoising' : 'Fine texture is stable where nothing moves', REF.temporal), px: true });
+  px.push({ ...sig('Brightness flicker across samples', flick.toFixed(1) + ' levels', 'neutral', 0, 'Context: cuts and lighting changes dominate this value', REF.temporal), px: true });
+  px.push({ ...sig('Duration / motion', v.duration.toFixed(1) + 's · Δ' + dm.toFixed(1), 'neutral', 0, 'Measured for context only: clip length is not evidence of origin', REF.diff), px: true });
   const list = [...meta.list, ...px], r = combine(list, meta.info, 45);
   render(f, 'Video · ' + v.videoWidth + '×' + v.videoHeight, list, r, '<div class="maps"><figure><video src="' + v.src + '" controls playsinline muted></video><figcaption>Preview</figcaption></figure></div>', c.toDataURL('image/jpeg', .7));
 }
 
 async function doAudio(f) {
   const buf = await f.arrayBuffer(), meta = scanMeta(buf, f.name);
+  await provenance(f, new Uint8Array(buf), meta);
   const ac = new (window.AudioContext || window.webkitAudioContext)();
   const ab = await ac.decodeAudioData(buf.slice(0)); ac.close();
   const x = ab.getChannelData(0), y = ab.numberOfChannels > 1 ? ab.getChannelData(1) : null, sr = ab.sampleRate, N = 4096;
@@ -326,7 +412,7 @@ async function doAudio(f) {
   L.push(sig('Loudness variation', dyn.toFixed(2), dyn < .22 ? 'ai' : dyn > .8 ? 'real' : 'neutral', dyn < .22 ? 6 : dyn > .8 ? -6 : 0, dyn < .22 ? 'Unusually constant energy' : dyn > .8 ? 'Natural dynamics' : 'Typical mastered music', REF.audio));
   L.push(sig('Crest factor', crest.toFixed(1) + ' dB', 'neutral', 0, 'Context only: loudness-war masters also score low', REF.audio));
   if (corr !== null) L.push(sig('Stereo L/R correlation', corr.toFixed(3), corr > .985 ? 'ai' : 'neutral', corr > .985 ? 4 : 0, corr > .985 ? 'Near-mono stereo image' : 'Real stereo spread', REF.audio));
-  L.push(sig('Format', meta.info.format + ' · ' + sr + ' Hz · ' + ab.numberOfChannels + 'ch · ' + ab.duration.toFixed(1) + 's', [32000, 44100, 48000].includes(sr) && ab.duration > 115 && ab.duration < 245 ? 'ai' : 'neutral', ab.duration > 115 && ab.duration < 245 && !meta.info.camera ? 1 : 0, 'Duration in 2–4 min range typical of Suno/Udio generations (very weak)', REF.audio));
+  L.push(sig('Format', meta.info.format + ' · ' + sr + ' Hz · ' + ab.numberOfChannels + 'ch · ' + ab.duration.toFixed(1) + 's', 'neutral', 0, 'Measured for context only', REF.audio));
   L.forEach(v => v.px = true);
   const list = [...meta.list, ...L], r = combine(list, meta.info, 60);
   render(f, 'Audio · ' + meta.info.format, list, r, '<audio controls src="' + URL.createObjectURL(f) + '" style="width:100%;margin-top:14px"></audio>');
