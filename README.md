@@ -20,7 +20,7 @@ Answer one question honestly: what can be measured about this file or text, and 
 - **References**: comparison with online detectors (trained classifiers, provenance verifiers, vendor watermark tools, forensic toolkits, AI-text detectors) plus the sources behind every check.
 
 ## Design
-One set of tokens (radius, font sizes, gap, pill shape) for every control: tabs, theme switch, buttons, chips, selects with a custom chevron, search inputs, textarea, disclosure arrows, file-card chevrons, scrollbars, audio/video players and the drop zone.
+One set of tokens (radius, font sizes, gap, pill shape, three control heights: 24, 32 and 38 px) for every control: tabs, theme switch, buttons, chips, badges, custom dropdowns (js/dropdown.js, replacing the native select popup), search inputs, textarea, disclosure arrows, scrollbars, audio/video players and the drop zone. Dropdown buttons, file-card chevrons and disclosure arrows share one chevron shape. Dropdowns support arrow keys, Home/End, type-ahead, Enter and Escape. Scrollbars and media players follow the in-app theme, not only the OS setting. File pickers are keyboard-focusable with the same focus ring as every other control.
 
 ## Limits
 - C2PA revocation (OCSP/CRL) is not checked, and the trust list is a snapshot that must be refreshed by hand.
@@ -32,7 +32,7 @@ One set of tokens (radius, font sizes, gap, pill shape) for every control: tabs,
 - The text tab does not judge AI authorship, on purpose.
 
 ## Files
-index.html, css/style.css, js/app.js, js/provenance.js, js/jpeg.js, js/writing.js, js/text.js, js/prnu.js, trust/c2pa-trust-list.pem, favicon.svg, images/logo.jpg. No data tables.
+index.html, css/style.css, js/app.js, js/provenance.js, js/jpeg.js, js/writing.js, js/text.js, js/prnu.js, js/dropdown.js, trust/c2pa-trust-list.pem, favicon.svg, images/logo.jpg. No data tables.
 
 ## Next steps
 Nested BMFF exclusions, an OCSP revocation check (needs a CORS-enabled responder), more languages for the writing check, and saving camera fingerprints in localStorage.

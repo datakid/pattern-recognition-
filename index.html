@@ -33,7 +33,7 @@
 <li><b>Honest scoring:</b> only measured, objective signals change the score. Filename, clip length, saturation and duration are still shown, but they add 0 points. If no provenance tag is found, the score stays between 15 and 85, and it is halved when the pixel signals disagree.</li>
 <li>Pixel checks include noise residual, kurtosis, CFA, a 1D and 2D FFT spectrum, JPEG grid, histogram comb gaps, colour diversity and copy-move clone detection.</li>
 <li>Video reliability is capped at 45% and audio at 60%, unless a provenance tag is found.</li></ul></aside>
-<label class="drop" id="drop-zone"><input type="file" id="media-input" multiple hidden><span>Drop or choose files: images · videos · audio · text</span></label>
+<label class="drop" id="drop-zone"><input type="file" id="media-input" class="vh" multiple><span>Drop or choose files: images · videos · audio · text</span></label>
 <p id="media-progress" class="progress"></p>
 <section id="batch-dash" class="card dash" hidden>
 <div id="dash-stats"></div>
@@ -49,7 +49,7 @@
 <div id="media-out"></div>
 <details class="card" id="prnu-card"><summary>Camera match · sensor fingerprint (PRNU)</summary>
 <p>Every camera sensor leaves a faint, fixed noise pattern. Build a fingerprint from photos you know came from one camera, then test whether other photos share it. Works on original, uncropped, unresized files at least 512 px across. Use 10–20 bright, plain references such as sky or walls.</p>
-<div class="row"><label class="btn ghost sm">1 · Reference photos<input type="file" id="prnu-ref" accept="image/*" multiple hidden></label><label class="btn ghost sm">2 · Photos to test<input type="file" id="prnu-test" accept="image/*" multiple hidden></label></div>
+<div class="row"><label class="btn ghost sm">1 · Reference photos<input type="file" id="prnu-ref" class="vh" accept="image/*" multiple></label><label class="btn ghost sm">2 · Photos to test<input type="file" id="prnu-test" class="vh" accept="image/*" multiple></label></div>
 <p id="prnu-status" class="tstat"></p><div id="prnu-out"></div></details>
 </section>
 <section id="panel-text" class="panel">
@@ -91,5 +91,6 @@
 <script src="js/writing.js"></script>
 <script src="js/text.js"></script>
 <script src="js/prnu.js"></script>
+<script src="js/dropdown.js"></script>
 </body>
 </html>
