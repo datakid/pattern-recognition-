@@ -13,10 +13,11 @@ Answer one question honestly: what can be measured about this file or text, and 
   - **Audio**: bandwidth, spectral flatness, loudness variation, crest factor, stereo correlation, C2PA.
   - **Scoring**: score limited to 15–85 without a provenance tag; damped when signals disagree. Reliability drops with screenshots, low JPEG quality, double compression, a lost DCT grid, or tampering. A verified C2PA AI tag scores 50 points; a tampered one scores 15.
   - Batch dashboard with filters, search, sort and CSV export.
-- **Writing check** (js/writing.js, shown at the top of the Text · Writing tab): English, 150+ words, 6+ sentences. Signals: self-disclosure or template residue (strong), post-2022 marker vocabulary (Kobak 2024, Liang 2024), stock phrases, sentence-length burstiness, paragraph uniformity, informal slips, leftover Markdown and repeated openers. Contractions, em dashes and lexical diversity are shown but not scored. Score is limited to 15–85 unless the text discloses itself; reliability is capped at 65%. Test results: a typical assistant paragraph scored 79 (Leans AI-style), a casual human note 31 (Leans human-style).
+- **Writing check** (js/writing.js, shown at the top of the Text · Numbers tab when the pasted text has at least 40 words of prose, or enough text to be scored): English, 150+ words, 6+ sentences. Signals: self-disclosure or template residue (strong), post-2022 marker vocabulary (Kobak 2024, Liang 2024), stock phrases, sentence-length burstiness, paragraph uniformity, informal slips, leftover Markdown and repeated openers. Contractions, em dashes and lexical diversity are shown but not scored. Score is limited to 15–85 unless the text discloses itself; reliability is capped at 65%. Test results: a typical assistant paragraph scored 79 (Leans AI-style), a casual human note 31 (Leans human-style).
 - **Camera match** (js/prnu.js, in the Files tab): PRNU sensor fingerprint built with a maximum-likelihood estimate from reference photos; tests other photos with PCE over a 512 px centre crop and all 4 rotations; threshold PCE 60. Synthetic test: same sensor PCE ≈ 10⁵, different sensor 6.7.
 - **C2PA trust**: certificate chain signatures are verified, then matched against the bundled official C2PA conformance trust list (trust/c2pa-trust-list.pem). MP4/MOV BMFF hashes (v1/v2, top-level exclusions) are recomputed for unfragmented files under 400 MB.
-- **Text → Table** (js/text.js): typed tokens with validation (Luhn, IBAN mod-97, calendar dates, IP ranges, coordinates, email). Tables from delimited text, key:value records and repeating line shapes; numeric column stats and MAD outlier flags.
+- **Text · Numbers** (js/text.js): typed tokens with validation (Luhn, IBAN mod-97, calendar dates, IP ranges, coordinates, email). Tables from delimited text, key:value records and repeating line shapes; numeric column stats and MAD outlier flags.
+- **Number patterns** (js/numbers.js, inside the Text · Numbers tab): tests row equations (A + B, A × B, × constant, running totals), column sequences (step, ratio, polynomial, Fibonacci-like), totals and digit habits. Each relation shows how many rows it holds in and how often shuffled values match as well, corrected for every relation tested. Rows that break a relation are highlighted. No grid, no formulas to type. It finds the relations the numbers already follow and flags the rows that break them.
 - **References**: comparison with online detectors (trained classifiers, provenance verifiers, vendor watermark tools, forensic toolkits, AI-text detectors) plus the sources behind every check.
 
 ## Design
@@ -29,10 +30,10 @@ One set of tokens (radius, font sizes, gap, pill shape, three control heights: 2
 - Camera match needs original, uncropped, unresized files.
 - SynthID cannot be decoded client-side.
 - There is no trained classifier, so many clean generated images without tags will show as Inconclusive.
-- The text tab does not judge AI authorship, on purpose.
+- Number patterns only test the relation families listed; a relation that holds in fewer than 4 rows, or by plausible chance, is not shown.
 
 ## Files
-index.html, css/style.css, js/app.js, js/provenance.js, js/jpeg.js, js/writing.js, js/text.js, js/prnu.js, js/dropdown.js, trust/c2pa-trust-list.pem, favicon.svg, images/logo.jpg. No data tables.
+index.html, css/style.css, js/app.js, js/provenance.js, js/jpeg.js, js/writing.js, js/numbers.js, js/text.js, js/prnu.js, js/dropdown.js, trust/c2pa-trust-list.pem, favicon.svg, images/logo.jpg. No data tables.
 
 ## Next steps
 Nested BMFF exclusions, an OCSP revocation check (needs a CORS-enabled responder), more languages for the writing check, and saving camera fingerprints in localStorage.

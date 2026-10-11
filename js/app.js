@@ -59,7 +59,7 @@ const REF_GROUPS = [
     [REF.spec, 'Spectral peak (residual FFT)', 'Upsampling layers create periodic frequency spikes'],
     [REF.diff, 'Kurtosis, flat-area ratio, saturation, video duration', 'Diffusion outputs carry distinctive residual statistics'],
     [['Ojha et al. 2023, Towards universal fake image detectors', 'https://arxiv.org/abs/2302.10174'], 'Overall approach', 'Shows hand-crafted cues generalise poorly — why reliability is shown'],
-    [['Liang et al. 2023, GPT detectors are biased against non-native English writers', 'https://arxiv.org/abs/2304.02819'], 'Comparison table', 'Why the text tab does not score AI authorship'],
+    [['Liang et al. 2023, GPT detectors are biased against non-native English writers', 'https://arxiv.org/abs/2304.02819'], 'Writing check', 'Why the writing check is capped and gated'],
     [REF.size, 'Dimensions', 'Latent grids yield multiples of 64 and fixed native sizes']
   ]],
   ['Compression & editing', [
@@ -92,6 +92,12 @@ const REF_GROUPS = [
     [['BIPM, The International System of Units (SI)', 'https://www.bipm.org/en/publications/si-brochure'], 'SI conversion', 'Conversion factors'],
     [['ISO 8601 date and time format', 'https://www.iso.org/iso-8601-date-and-time-format.html'], 'Date normalization', 'Output format YYYY-MM-DD'],
     [['ISO 4217 currency codes', 'https://www.iso.org/iso-4217-currency-codes.html'], 'Currency detection', 'Symbol → code mapping']
+  ]],
+  ['Number patterns', [
+    [['Beber & Scacco 2012, What the numbers say: a digit-based test for election fraud', 'https://doi.org/10.1093/pan/mps003'], 'Last-digit and rounding checks', 'People inventing numbers produce uneven last digits'],
+    [['Nigrini 2012, Benford\'s Law: Applications for Forensic Accounting, Auditing, and Fraud Detection', 'https://doi.org/10.1002/9781119203094'], 'Benford first-digit MAD', 'Conformity thresholds 0.006 / 0.012 / 0.015'],
+    [['Wilson & Hilferty 1931, The distribution of chi-square', 'https://doi.org/10.1073/pnas.17.12.684'], 'Digit χ² p-values', 'Accurate on-device p-value without tables'],
+    [['Bonferroni correction (multiple comparisons)', 'https://en.wikipedia.org/wiki/Bonferroni_correction'], 'Chance figure', 'Testing many relations makes some match by luck, so each chance is multiplied by the number tested']
   ]]
 ];
 $('#refs-out').innerHTML = REF_GROUPS.map(([g, items]) => '<article class="card"><h3>' + g + '</h3><div class="tablewrap"><table><thead><tr><th>Source</th><th>Used by</th><th>Why it matters</th></tr></thead><tbody>' + items.map(([r, use, why]) => '<tr><td>' + (r[1] ? '<a href="' + r[1] + '" target="_blank" rel="noopener">' + esc(r[0]) + '</a>' : esc(r[0])) + '</td><td>' + esc(use) + '</td><td>' + esc(why) + '</td></tr>').join('') + '</tbody></table></div></article>').join('');
@@ -450,7 +456,7 @@ async function handleFiles(files) {
       if (t.startsWith('image/') || /heic|avif|webp|png|jpe?g|gif|bmp/.test(ext)) await doImage(f);
       else if (t.startsWith('video/') || /mp4|mov|webm|mkv/.test(ext)) await doVideo(f);
       else if (t.startsWith('audio/') || /mp3|wav|flac|ogg|m4a|aac|opus/.test(ext)) await doAudio(f);
-      else if (t.startsWith('text/') || /txt|csv|tsv|log|md|json|html?/.test(ext)) { $('#text-input').value += (await f.text()) + '\n'; extractText(); $('#media-progress').textContent = f.name + ' sent to Text → Table'; }
+      else if (t.startsWith('text/') || /txt|csv|tsv|log|md|json|html?/.test(ext)) { $('#text-input').value += (await f.text()) + '\n'; extractText(); $('#media-progress').textContent = f.name + ' sent to Text · Numbers'; }
       else throw new Error('unsupported type');
     } catch (e) { render(f, 'Unreadable · ' + (f.type || 'unknown'), [], { score: 0, rel: 0, label: 'Error' }, '<p>Could not decode in this browser (' + esc(e.message || 'format') + ').</p>'); }
   }

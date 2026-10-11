@@ -31,8 +31,9 @@ code{font-size:.8em;background:var(--line);padding:1px 6px;border-radius:6px}
 
 .panel{display:none}.panel.active{display:block}
 .note,.card,.fcard,.drop,textarea{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg)}
-.note{padding:14px 18px;margin-bottom:var(--gap);font-size:var(--fs-sm);color:var(--dim)}
+.note{padding:14px 18px;margin-top:0;margin-bottom:var(--gap);font-size:var(--fs-sm);color:var(--dim)}
 .note b{color:var(--fg)}.note ul{margin:6px 0 0 18px;line-height:1.6}
+.lede{color:var(--dim);margin-bottom:var(--gap)}
 .card{padding:20px;margin-top:var(--gap)}
 .card h3{font-family:'Playfair Display',serif;font-weight:500;font-size:1.25rem;margin-bottom:4px;word-break:break-word}
 .card p{color:var(--dim);font-size:var(--fs-sm);line-height:1.5}
@@ -116,6 +117,7 @@ th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;verti
 tbody tr:last-child td{border-bottom:0}
 th{background:var(--bg2);color:var(--fg);font-weight:500;white-space:nowrap;position:sticky;top:0}
 td{color:var(--dim)}
+td.bad{color:var(--fg);text-decoration:underline dotted;text-decoration-thickness:1px;cursor:help}
 th small,td small{display:block;font-size:.68rem;color:var(--dim);font-weight:400;margin-top:2px}
 th small{text-transform:uppercase;letter-spacing:.06em}
 td.to{font-weight:600;white-space:nowrap}td.to-ai,td.to-real{color:var(--fg)}td.to-real{font-style:italic}td.to-proc{color:var(--dim)}

@@ -188,18 +188,6 @@ const TXT = (() => {
     return t.head.map((_, i) => { const c = {}; let n = 0; t.rows.forEach(r => { const v = String(r[i] ?? '').trim(); if (!v) return; n++; const tk = tokenize(v), ty = tk.length === 1 ? tk[0].type : tk.length ? 'mixed' : ''; c[ty] = (c[ty] || 0) + 1; }); const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return top && top[1] >= n * .6 && TYPE[top[0]] ? TYPE[top[0]] : ''; });
   }
 
-  function colStats(t) {
-    const out = [];
-    t.head.forEach((h, i) => {
-      const raw = t.rows.map(r => String(r[i] ?? '').trim()).filter(Boolean), nums = raw.map(v => /^-?[\d.,]+$/.test(v) ? parseNum(v) : NaN).filter(Number.isFinite);
-      if (nums.length < 3 || nums.length < raw.length * .8) return;
-      const s = [...nums].sort((a, b) => a - b), med = s[s.length >> 1], mad = [...s.map(v => Math.abs(v - med))].sort((a, b) => a - b)[s.length >> 1] || 0;
-      const outl = mad ? nums.filter(v => Math.abs(v - med) / (1.4826 * mad) > 3.5) : [];
-      out.push(h + ': min ' + fmt(s[0]) + ' · median ' + fmt(med) + ' · max ' + fmt(s[s.length - 1]) + ' · sum ' + fmt(nums.reduce((a, b) => a + b, 0)) + (outl.length ? ' · outliers ' + outl.map(fmt).join(', ') : ''));
-    });
-    return out;
-  }
-
   function analyze(src) {
     const { kept, removed, blank, html, brk } = clean(src);
     const toks = kept.map(tokenize), used = new Set(), tables = [];
@@ -255,7 +243,7 @@ const TXT = (() => {
       const head = dedupe(['Label', ...typed.flatMap(t => expand(t).map(([suf]) => TYPE[t.type] + suf))]);
       tables.push(dropEmpty({ title: 'Similar lines', pattern: k.split(' ').map(x => TYPE[x]).join(' · ') + ' with varying labels — ' + g.length + ' lines', head, rows: g.map(r => [r.t.filter(t => t.type === 'text').map(t => t.raw).join(' '), ...r.t.filter(t => t.type !== 'text').flatMap(t => expand(t).map(x => x[1]))]) }));
     });
-    tables.forEach(t => { t.types = colTypes(t); t.stats = colStats(t); });
+    tables.forEach(t => { t.types = colTypes(t); });
     const ent = new Map(), dims = {};
     toks.forEach((ts, li) => ts.forEach(t => {
       if (t.type === 'qty') { const s = si(t.raw); if (s.dim) dims[s.dim] = (dims[s.dim] || 0) + 1; }
@@ -266,10 +254,10 @@ const TXT = (() => {
       e.count++; if (e.lines.length < 8) e.lines.push(li + 1); ent.set(key, e);
     }));
     const prose = kept.filter((l, i) => !used.has(i) && toks[i].every(t => t.type === 'text'));
-    return { kept, removed, blank, html, tables, entities: [...ent.values()], dims, prose };
+    return { kept, removed, blank, html, tables, entities: [...ent.values()], dims, prose, pairs: kv.map(x => ({ k: x.k, v: x.v, line: x.i + 1 })), used: [...used] };
   }
 
-  return { analyze, TYPE };
+  return { analyze, TYPE, parseNum };
 })();
 
 let txtTables = [];
@@ -278,17 +266,23 @@ function extractText() {
   if (!src.trim()) { out.innerHTML = ''; return; }
   const a = TXT.analyze(src);
   if (!a.kept.length) { out.innerHTML = '<div class="card"><p>Nothing usable found.</p></div>'; return; }
+  const N = NUMS.analyze(a);
+  const proseWords = a.prose.join(' ').split(/\s+/).filter(Boolean).length;
   const ec = {}; a.entities.forEach(e => ec[e.type] = (ec[e.type] || 0) + e.count);
   txtTables = [...a.tables];
   if (a.entities.length) txtTables.push({ title: 'Entities', pattern: a.entities.length + ' unique values across all lines', head: ['Type', 'Raw', 'Normalized', 'Validation', 'Count', 'Lines'], rows: a.entities.sort((x, y) => x.type.localeCompare(y.type) || y.count - x.count).map(e => [e.type, e.raw, e.norm, e.check || '', e.count, e.lines.join(', ')]), types: [] });
   const chips = [
     ...a.tables.map((t, i) => '<a class="chip" href="#ttable-' + i + '">' + esc(t.title) + ' <b>' + t.rows.length + '</b></a>'),
+    ...NUMS.chips(N),
     ...Object.entries(ec).map(([k, v]) => '<span class="chip">' + k + ' <b>' + v + '</b></span>'),
     ...Object.entries(a.dims).map(([k, v]) => '<span class="chip">' + k + ' <b>' + v + '</b></span>')
   ].join('');
   const removedN = a.removed.length;
-  const card = (t, i) => '<article class="card ttable" id="ttable-' + i + '"><div class="thead"><div><h3>' + esc(t.title) + '</h3><p>' + esc(t.pattern) + ' · ' + t.rows.length + ' rows</p></div><div class="row"><button class="btn ghost sm" data-csv="' + i + '">CSV</button><button class="btn ghost sm" data-tsv="' + i + '">Copy</button></div></div><div class="tablewrap tall"><table><thead><tr>' + t.head.map((h, j) => '<th>' + esc(h) + (t.types && t.types[j] && t.types[j] !== h ? '<small>' + t.types[j] + '</small>' : '') + '</th>').join('') + '</tr></thead><tbody>' + t.rows.slice(0, 1000).map(r => '<tr>' + t.head.map((_, j) => '<td>' + esc(r[j] ?? '') + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>' + (t.stats && t.stats.length ? '<ul class="stats">' + t.stats.map(s => '<li>' + esc(s) + '</li>').join('') + '</ul>' : '') + '</article>';
-  out.innerHTML = WRITING.render(src) + '<div class="card"><h4>Recognized patterns</h4><div class="chips">' + (chips || '<span class="chip">No structure found</span>') + '</div><p class="tstat">' + a.kept.length + ' clean lines · ' + removedN + ' junk removed' + (a.html ? ' · HTML stripped on ' + a.html + ' lines' : '') + ' · ' + a.blank + ' blank lines</p></div>' + txtTables.map(card).join('') + (a.prose.length ? '<details class="card"><summary>Unstructured text lines (' + a.prose.length + ')</summary><ul class="drivers">' + a.prose.slice(0, 200).map(l => '<li>' + esc(l) + '</li>').join('') + '</ul></details>' : '') + (removedN ? '<details class="card"><summary>Removed as junk (' + removedN + ')</summary><div class="tablewrap"><table><thead><tr><th>Line</th><th>Reason</th></tr></thead><tbody>' + a.removed.slice(0, 300).map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td></tr>').join('') + '</tbody></table></div></details>' : '');
+  const card = (t, i) => {
+    const nt = N.tables[i], small = j => nt && nt.formula[j] ? '= ' + nt.formula[j] : t.types && t.types[j] && t.types[j] !== t.head[j] ? t.types[j] : '';
+    return '<article class="card ttable" id="ttable-' + i + '"><div class="thead"><div><h3>' + esc(t.title) + '</h3><p>' + esc(t.pattern) + ' · ' + t.rows.length + ' rows</p></div><div class="row"><button class="btn ghost sm" data-csv="' + i + '">CSV</button><button class="btn ghost sm" data-tsv="' + i + '">Copy</button></div></div><div class="tablewrap tall"><table><thead><tr>' + t.head.map((h, j) => '<th>' + esc(h) + (small(j) ? '<small>' + esc(small(j)) + '</small>' : '') + '</th>').join('') + '</tr></thead><tbody>' + t.rows.slice(0, 1000).map((r, ri) => '<tr>' + t.head.map((_, j) => { const b = nt && nt.bad[ri + ',' + j]; return '<td' + (b ? ' class="bad" title="' + esc(b) + '"' : '') + '>' + esc(r[j] ?? '') + '</td>'; }).join('') + '</tr>').join('') + '</tbody></table></div>' + (nt ? NUMS.render(nt) : '') + '</article>';
+  };
+  out.innerHTML = (proseWords >= 40 || !WRITING.analyze(src).gate ? WRITING.render(src) : '') + '<div class="card"><h4>Recognized patterns</h4><div class="chips">' + (chips || '<span class="chip">No structure found</span>') + '</div><p class="tstat">' + a.kept.length + ' clean lines · ' + removedN + ' junk removed' + (a.html ? ' · HTML stripped on ' + a.html + ' lines' : '') + ' · ' + a.blank + ' blank lines</p></div>' + txtTables.map(card).join('') + N.lines.map(NUMS.renderLine).join('') + (a.prose.length ? '<details class="card"><summary>Unstructured text lines (' + a.prose.length + ')</summary><ul class="drivers">' + a.prose.slice(0, 200).map(l => '<li>' + esc(l) + '</li>').join('') + '</ul></details>' : '') + (removedN ? '<details class="card"><summary>Removed as junk (' + removedN + ')</summary><div class="tablewrap"><table><thead><tr><th>Line</th><th>Reason</th></tr></thead><tbody>' + a.removed.slice(0, 300).map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td></tr>').join('') + '</tbody></table></div></details>' : '');
 }
 
 $('#text-out').addEventListener('click', e => {
@@ -302,6 +296,6 @@ $('#text-out').addEventListener('click', e => {
 });
 $('#text-run').onclick = extractText;
 $('#text-sample').onclick = () => {
-  $('#text-input').value = 'ORDER SUMMARY\n=================\nItem  Qty  Price\nOrganic apples - 3 kg - $4.50\nWhole milk - 2 L - $3.20\nRice bag - 5 kg - $12.00\nOlive oil - 750 ml - €9.90\n-----------------\nOrder ID: INV-2026-0042\nDate: Oct 3, 2026\nContact: support@freshmart.example\nDelivery: 45 min\nTotal = $29.60\nSent from my iPhone\nOrganic apples - 3 kg - $4.50\n\nName: Alice Chen\nAge: 34\nCity: Berlin\n\nName: Omar Haddad\nAge: 29\nCity: Cairo\n\nServer 10.0.0.12 responded in 120 ms at 14:02\nServer 10.0.0.19 responded in 340 ms at 14:05\nServer 10.0.0.23 responded in 135 ms at 14:09\nServer 10.0.0.31 responded in 4100 ms at 14:12\nPay to IBAN GB82 WEST 1234 5698 7654 32 by 2026-02-30\nCard on file 4111 1111 1111 1111\nTracking 3f2c9a1e-7b4d-4c8a-9e21-5a6b7c8d9e0f\n<p>Unsubscribe</p>';
+  $('#text-input').value = 'ORDER SUMMARY\n=================\nItem  Qty  Price\nOrganic apples - 3 kg - $4.50\nWhole milk - 2 L - $3.20\nRice bag - 5 kg - $12.00\nOlive oil - 750 ml - €9.90\n-----------------\nOrder ID: INV-2026-0042\nDate: Oct 3, 2026\nContact: support@freshmart.example\nDelivery: 45 min\nTotal = $29.60\nSent from my iPhone\nOrganic apples - 3 kg - $4.50\n\nName: Alice Chen\nAge: 34\nCity: Berlin\n\nName: Omar Haddad\nAge: 29\nCity: Cairo\n\nServer 10.0.0.12 responded in 120 ms at 14:02\nServer 10.0.0.19 responded in 340 ms at 14:05\nServer 10.0.0.23 responded in 135 ms at 14:09\nServer 10.0.0.31 responded in 4100 ms at 14:12\nPay to IBAN GB82 WEST 1234 5698 7654 32 by 2026-02-30\nCard on file 4111 1111 1111 1111\nTracking 3f2c9a1e-7b4d-4c8a-9e21-5a6b7c8d9e0f\n<p>Unsubscribe</p>\n\nREGIONAL SALES\nRegion\tUnits\tPrice\tRevenue\tTax\tTotal\nNorth\t120\t4.50\t540.00\t108.00\t648.00\nSouth\t85\t6.20\t527.00\t105.40\t632.40\nEast\t240\t2.75\t660.00\t132.00\t792.00\nWest\t60\t12.00\t720.00\t144.00\t864.00\nCentral\t150\t3.80\t570.00\t114.00\t684.00\nCoast\t95\t7.40\t703.00\t140.60\t843.60\nValley\t310\t1.90\t589.00\t117.80\t716.80\nHills\t45\t15.50\t697.50\t139.50\t837.00\nTotal\t1105\t\t5006.50\t1001.30\t6007.80';
   extractText();
 };
