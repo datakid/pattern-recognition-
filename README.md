@@ -18,6 +18,7 @@ Answer one question honestly: what can be measured about this file or text, and 
 - **C2PA trust**: certificate chain signatures are verified, then matched against the bundled official C2PA conformance trust list (trust/c2pa-trust-list.pem). MP4/MOV BMFF hashes (v1/v2, top-level exclusions) are recomputed for unfragmented files under 400 MB.
 - **Text · Numbers** (js/text.js): typed tokens with validation (Luhn, IBAN mod-97, calendar dates, IP ranges, coordinates, email). Tables from delimited text, key:value records and repeating line shapes; numeric column stats and MAD outlier flags.
 - **Number patterns** (js/numbers.js, inside the Text · Numbers tab): tests row equations (A + B, A × B, × constant, running totals), column sequences (step, ratio, polynomial, Fibonacci-like), totals and digit habits. Each relation shows how many rows it holds in and how often shuffled values match as well, corrected for every relation tested. Rows that break a relation are highlighted. No grid, no formulas to type. It finds the relations the numbers already follow and flags the rows that break them.
+- **Sequence guesser** (js/sequence.js, used by Number patterns for number lines and numeric columns): exact rational and big-integer arithmetic, so nothing is rounded. Rules tried: constant, arithmetic and polynomial (degree up to 5), geometric, repeating cycles, linear recurrences (Berlekamp–Massey), multiply-then-add, growing multipliers such as factorials, squaring maps, interleaved sequences, alternating operations, running totals and products of simpler sequences, and about 50 known sequences (primes, Fibonacci, Catalan, digits of π and others) with offset and scale. A `?` marks a missing term and is filled in. Rules are ranked by description length. A rule counts as checked only when it predicts numbers it was not fitted to (at least 2 beyond its own parameters). Rival rules that give a different next number are listed, and confidence never goes above 90%. When no exact rule fits, a labelled approximate trend (linear, quadratic, cubic or exponential by AICc, R² of at least 0.9) is shown instead. Test results: 43 of 43 known sequences continued correctly (including 1, 2, 4, 8, 16 as 32, with the Moser circle rival 31 listed), and 0 of 300 random lists of 5 to 8 numbers were called a pattern.
 - **References**: comparison with online detectors (trained classifiers, provenance verifiers, vendor watermark tools, forensic toolkits, AI-text detectors) plus the sources behind every check.
 
 ## Design
@@ -31,9 +32,10 @@ One set of tokens (radius, font sizes, gap, pill shape, three control heights: 2
 - SynthID cannot be decoded client-side.
 - There is no trained classifier, so many clean generated images without tags will show as Inconclusive.
 - Number patterns only test the relation families listed; a relation that holds in fewer than 4 rows, or by plausible chance, is not shown.
+- The sequence guesser needs at least 4 numbers, knows only the built-in sequences (no online lookup), and a finite list never proves a rule. Lines that share a shape with another line are read as table rows, not as sequences.
 
 ## Files
-index.html, css/style.css, js/app.js, js/provenance.js, js/jpeg.js, js/writing.js, js/numbers.js, js/text.js, js/prnu.js, js/dropdown.js, trust/c2pa-trust-list.pem, favicon.svg, images/logo.jpg. No data tables.
+index.html, css/style.css, js/app.js, js/provenance.js, js/jpeg.js, js/writing.js, js/sequence.js, js/numbers.js, js/text.js, js/prnu.js, js/dropdown.js, trust/c2pa-trust-list.pem, favicon.svg, images/logo.jpg. No data tables.
 
 ## Next steps
 Nested BMFF exclusions, an OCSP revocation check (needs a CORS-enabled responder), more languages for the writing check, and saving camera fingerprints in localStorage.

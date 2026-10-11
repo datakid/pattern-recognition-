@@ -164,3 +164,16 @@ td a:hover{text-decoration-color:var(--fg)}
 footer{text-align:center;color:var(--dim);font-size:var(--fs-xs);margin-top:40px}
 @media (max-width:600px){body{padding:16px}.brand{font-size:1.6rem}.fcard>summary{flex-wrap:wrap}.fmeta{flex-basis:calc(100% - 70px)}.vpill{margin-left:66px}.fscore{margin-left:auto}.dash{position:relative}#mode-tabs{width:100%;justify-content:center}.tab{padding:0 14px}.toolbar .dd{flex:1}.toolbar .dd-btn{width:100%}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.arrow{display:inline-flex;align-items:center;color:var(--dim);padding:0 2px}
+.seqrule{margin-top:10px}
+.seqrule code{font-size:var(--fs-sm)}
+.fbody .chips{margin-top:14px}
+.spark{display:block;width:100%;height:auto;max-height:150px;margin-top:14px}
+.spark path{fill:none;stroke-width:1.5;vector-effect:non-scaling-stroke}
+.spark .lk{stroke:var(--fg)}
+.spark .lp{stroke:var(--dim);stroke-dasharray:4 4}
+.spark .k{fill:var(--fg)}
+.spark .p{fill:var(--card);stroke:var(--fg);stroke-width:1.5}
+.spark text{fill:var(--dim);font-size:10px}
+.behave td,.behave th{white-space:nowrap}
+.behave th{position:static}

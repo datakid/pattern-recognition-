@@ -97,7 +97,13 @@ const REF_GROUPS = [
     [['Beber & Scacco 2012, What the numbers say: a digit-based test for election fraud', 'https://doi.org/10.1093/pan/mps003'], 'Last-digit and rounding checks', 'People inventing numbers produce uneven last digits'],
     [['Nigrini 2012, Benford\'s Law: Applications for Forensic Accounting, Auditing, and Fraud Detection', 'https://doi.org/10.1002/9781119203094'], 'Benford first-digit MAD', 'Conformity thresholds 0.006 / 0.012 / 0.015'],
     [['Wilson & Hilferty 1931, The distribution of chi-square', 'https://doi.org/10.1073/pnas.17.12.684'], 'Digit χ² p-values', 'Accurate on-device p-value without tables'],
-    [['Bonferroni correction (multiple comparisons)', 'https://en.wikipedia.org/wiki/Bonferroni_correction'], 'Chance figure', 'Testing many relations makes some match by luck, so each chance is multiplied by the number tested']
+    [['Bonferroni correction (multiple comparisons)', 'https://en.wikipedia.org/wiki/Bonferroni_correction'], 'Chance figure', 'Testing many relations makes some match by luck, so each chance is multiplied by the number tested'],
+    [['Massey 1969, Shift-register synthesis and BCH decoding', 'https://doi.org/10.1109/TIT.1969.1054260'], 'Linear recurrences', 'Finds the shortest recurrence that reproduces a list, such as Fibonacci-type rules'],
+    [['Rissanen 1978, Modeling by shortest data description', 'https://doi.org/10.1016/0005-1098(78)90005-5'], 'Sequence rule ranking', 'Between rules that fit, the simpler description is preferred'],
+    [['OEIS Foundation, On-Line Encyclopedia of Integer Sequences', 'https://oeis.org/'], 'Built-in known sequences', 'Source of the sequences built in; no lookup is made online'],
+    [['Finite difference', 'https://en.wikipedia.org/wiki/Finite_difference'], 'Polynomial rules', 'A polynomial of degree d has constant differences at level d'],
+    [['Dividing a circle into areas (Moser\'s circle problem)', 'https://en.wikipedia.org/wiki/Dividing_a_circle_into_areas'], 'Competing rules', '1, 2, 4, 8, 16 continues as 32 or as 31, so close rivals are listed'],
+    [['Burnham & Anderson 2004, Multimodel inference: understanding AIC and BIC', 'https://doi.org/10.1177/0049124104268644'], 'Approximate trend', 'AICc chooses between linear, quadratic, cubic and exponential trends']
   ]]
 ];
 $('#refs-out').innerHTML = REF_GROUPS.map(([g, items]) => '<article class="card"><h3>' + g + '</h3><div class="tablewrap"><table><thead><tr><th>Source</th><th>Used by</th><th>Why it matters</th></tr></thead><tbody>' + items.map(([r, use, why]) => '<tr><td>' + (r[1] ? '<a href="' + r[1] + '" target="_blank" rel="noopener">' + esc(r[0]) + '</a>' : esc(r[0])) + '</td><td>' + esc(use) + '</td><td>' + esc(why) + '</td></tr>').join('') + '</tbody></table></div></article>').join('');

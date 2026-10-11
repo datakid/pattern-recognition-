@@ -317,7 +317,7 @@ const NUMS = (() => {
       if (t.title === 'Key–value pairs') {
         const V = view(t);
         if (!V.cols.length) return null;
-        return { eqs: [], seqs: [], totals: [], cols: V.cols.map(c => colLine(c.name, c.nums)), digits: [], formula: {}, bad: {}, m: 0, V, kvOnly: true };
+        return { eqs: [], seqs: [], rich: [], totals: [], cols: V.cols.map(c => colLine(c.name, c.nums)), digits: [], formula: {}, bad: {}, m: 0, V, kvOnly: true };
       }
       const V = view(t);
       if (!V.cols.length) return null;
@@ -338,10 +338,18 @@ const NUMS = (() => {
       const seqs = [...byCol.values()].map(pickBest).sort((x, y) => x.col - y.col);
       eqs.forEach(e => { formula[e.target] = e.rhs; e.exc.forEach(x => { bad[x.row + ',' + e.target] = 'expected ' + fmtN(x.expected, x.d); }); });
       seqs.forEach(s => s.exc.forEach(x => { bad[x.row + ',' + s.col] = 'expected ' + fmtN(x.expected, x.d); }));
+      const rich = [];
+      V.cols.filter(c => c.distinct >= 3).forEach(c => {
+        if (seqs.some(x => x.col === c.j)) return;
+        const idx = V.dataRows.filter(r => c.vals[r] !== null);
+        if (idx.length < 6 || idx.length > 60 || idx.length !== V.dataRows.length) return;
+        const res = SEQ.analyze(idx.map(r => c.vals[r].toFixed(c.d)), 5);
+        if (!res.error && (res.label === 'Verified' || res.label === 'Plausible')) rich.push({ col: c.j, name: c.name, a: res });
+      });
       const totals = totalsFor(V, bad);
       const cols = V.cols.map(c => colLine(c.name, c.nums));
       const digits = digitsFor(V, seqs);
-      return { eqs, seqs, totals, cols, digits, formula, bad, m, V };
+      return { eqs, seqs, rich, totals, cols, digits, formula, bad, m, V };
     });
 
     (a.pairs || []).forEach(p => {
@@ -373,21 +381,29 @@ const NUMS = (() => {
       }
     });
 
-    const used = new Set(a.used || []), lines = [];
+    const used = new Set(a.used || []), lines = [], GAP = /^\?+$/;
     a.kept.forEach((l, i) => {
-      if (used.has(i) || !/^[\s\d.,;+\-−]+$/.test(l)) return;
+      if (used.has(i) || !/^[\s\d.,;+\-−?]+$/.test(l)) return;
       const parts = l.includes(';') ? l.split(/\s*;\s*/) : l.includes(', ') ? l.split(/,\s+/) : /\s/.test(l.trim()) ? l.trim().split(/\s+/) : l.split(',');
       const pieces = parts.map(s => s.trim());
-      const parsed = pieces.map(cell);
-      if (pieces.length < MIN_SEQ || parsed.some(p => !p)) return;
-      const values = parsed.map(p => p.v), d = Math.max(...parsed.map(p => p.d));
-      const col = { j: 0, name: 'Values', d, h: .5 * 10 ** -d }, ctx = { tested: 0 };
-      const all = seqChecks(values, values.map((_, k) => k), col, ctx, null), m = ctx.tested;
-      const seqs = all.filter(c => { c.adj = Math.min(0, c.log10p + Math.log10(Math.max(1, m))); return c.adj <= MAX_LOG10P; });
-      lines.push({ line: i + 1, values, d, seqs: seqs.length ? [pickBest(seqs)] : [], m });
+      const parsed = pieces.map(s => GAP.test(s) ? { v: null, d: 0 } : cell(s));
+      if (pieces.length < MIN_SEQ || parsed.some(p => !p) || parsed.every(p => p.v === null)) return;
+      const gap = parsed.some(p => p.v === null), d = Math.max(...parsed.map(p => p.d));
+      const tokens = pieces.map((s, k) => parsed[k].v === null ? '?' : /^[-−]?\d+(?:\.\d+)?$/.test(s) ? s : String(parsed[k].v));
+      const rich = SEQ.analyze(tokens, 5);
+      let seqs = [], m = 0;
+      if (!gap) {
+        const values = parsed.map(p => p.v), col = { j: 0, name: 'Values', d, h: .5 * 10 ** -d }, ctx = { tested: 0 };
+        const all = seqChecks(values, values.map((_, k) => k), col, ctx, null);
+        m = ctx.tested;
+        const kept = all.filter(c => { c.adj = Math.min(0, c.log10p + Math.log10(Math.max(1, m))); return c.adj <= MAX_LOG10P; });
+        seqs = kept.length ? [pickBest(kept)] : [];
+      }
+      lines.push({ line: i + 1, values: parsed.map(p => p.v), d, seqs, m, rich: rich.error ? null : rich, gap });
     });
 
-    const eq = tables.reduce((s, t) => s + (t ? t.eqs.length : 0), 0), seq = tables.reduce((s, t) => s + (t ? t.seqs.length : 0), 0) + lines.reduce((s, l) => s + l.seqs.length, 0);
+    const richHit = r => r && r.label !== 'No pattern';
+    const eq = tables.reduce((s, t) => s + (t ? t.eqs.length : 0), 0), seq = tables.reduce((s, t) => s + (t ? t.seqs.length + t.rich.length : 0), 0) + lines.reduce((s, l) => s + (l.seqs.length || richHit(l.rich) || (l.rich && l.rich.approx) ? 1 : 0), 0);
     const brokenKeys = new Set(); tables.forEach((t, ti) => { if (t) Object.keys(t.bad).forEach(k => brokenKeys.add(ti + '|' + k)); });
     return { tables, lines, count: { eq, seq, broken: brokenKeys.size } };
   }
@@ -404,17 +420,24 @@ const NUMS = (() => {
 
   function render(nt) {
     const eqItems = nt.eqs.map(e => '<li><b>' + esc(e.text) + '</b> · ' + e.k + ' of ' + e.n + ' rows · chance ' + fmtChance(e.adj) + excList(e.exc) + '</li>');
-    const sqItems = seqItems(nt.seqs);
-    const note = eqItems.length || sqItems.length ? chanceNote(nt.m) : '';
+    const chanceItems = seqItems(nt.seqs);
+    const richItems = nt.rich.map(x => '<li><b>' + esc(x.name) + '</b> ' + esc(x.a.top.words) + ' · ' + x.a.label.toLowerCase() + ' · ' + x.a.ev + ' independent checks · next ' + esc(x.a.next.slice(0, 3).map(SEQ.fmtQ).join(', ')) + '</li>');
+    const sqItems = [...chanceItems, ...richItems];
+    const note = eqItems.length || chanceItems.length ? chanceNote(nt.m) : '';
     let noteDone = false;
     const withNote = html => { if (!html || noteDone) return html; noteDone = true; return html.replace('</h4>', '</h4>' + note); };
     return withNote(section('Equations', eqItems)) + withNote(section('Sequences', sqItems)) + section('Totals', nt.totals.map(s => '<li>' + esc(s) + '</li>')) + section('Columns', nt.cols.map(s => '<li>' + esc(s) + '</li>')) + section('Digits', nt.digits.map(s => '<li>' + esc(s) + '</li>'));
   }
 
   function renderLine(L) {
-    const items = seqItems(L.seqs);
-    const body = items.length ? '<h4>Sequences</h4>' + chanceNote(L.m) + '<ul class="stats">' + items.join('') + '</ul>' : '<p class="tstat">No step, ratio, polynomial or recurrence pattern passed.</p>';
-    return '<article class="card"><h3>Number line ' + L.line + '</h3><p class="tstat">' + esc(L.values.join(', ')) + '</p>' + body + '</article>';
+    const r = L.rich && (L.rich.label !== 'No pattern' || L.rich.approx) ? L.rich : null;
+    const items = seqItems(L.seqs), shown = L.values.map(v => v === null ? '?' : v).join(', ');
+    if (r) {
+      const partial = L.seqs.some(s => s.exc.length) ? '<article class="card"><h4>Close fit with broken values, line ' + L.line + '</h4>' + chanceNote(L.m) + '<ul class="stats">' + items.join('') + '</ul></article>' : '';
+      return SEQ.render(r, { line: L.line }) + partial;
+    }
+    const body = items.length ? '<h4>Sequences</h4>' + chanceNote(L.m) + '<ul class="stats">' + items.join('') + '</ul>' : '<p class="tstat">No step, ratio, polynomial, recurrence or known-sequence pattern passed.</p>';
+    return '<article class="card"><h3>Number line ' + L.line + '</h3><p class="tstat">' + esc(shown) + '</p>' + body + '</article>';
   }
 
   function chips(N) {
