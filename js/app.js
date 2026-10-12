@@ -95,8 +95,8 @@ const REF_GROUPS = [
   ]],
   ['Number patterns', [
     [['Beber & Scacco 2012, What the numbers say: a digit-based test for election fraud', 'https://doi.org/10.1093/pan/mps003'], 'Last-digit and rounding checks', 'People inventing numbers produce uneven last digits'],
-    [['Nigrini 2012, Benford\'s Law: Applications for Forensic Accounting, Auditing, and Fraud Detection', 'https://doi.org/10.1002/9781119203094'], 'Benford first-digit MAD', 'Conformity thresholds 0.006 / 0.012 / 0.015'],
-    [['Wilson & Hilferty 1931, The distribution of chi-square', 'https://doi.org/10.1073/pnas.17.12.684'], 'Digit χ² p-values', 'Accurate on-device p-value without tables'],
+    [['Nigrini 2012, Benford\'s Law: Applications for Forensic Accounting, Auditing, and Fraud Detection', 'https://doi.org/10.1002/9781119203094'], 'Benford first-digit test', 'p-value from χ²; MAD 0.006 marks a negligible deviation'],
+    [['Wilson & Hilferty 1931, The distribution of chi-square', 'https://doi.org/10.1073/pnas.17.12.684'], 'Digit and Benford χ² p-values', 'Accurate on-device p-value without tables'],
     [['Bonferroni correction (multiple comparisons)', 'https://en.wikipedia.org/wiki/Bonferroni_correction'], 'Chance figure', 'Testing many relations makes some match by luck, so each chance is multiplied by the number tested']
   ]]
 ];

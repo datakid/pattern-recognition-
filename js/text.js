@@ -59,26 +59,27 @@ const TXT = (() => {
   const UNITS = Object.keys(U).sort((a, b) => b.length - a.length).map(rx).join('|').replace(/sq ft/, 'sq\\s?ft');
   const CUR = { '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₹': 'INR', dollar: 'USD', dollars: 'USD', euro: 'EUR', euros: 'EUR' };
   const CURS = '[$€£¥₹]|USD|EUR|GBP|JPY|INR|AED|SAR|EGP|CAD|AUD|CHF|CNY';
+  const DIGIT = /\d/;
   const TOK = [
     ['url', /\bhttps?:\/\/[^\s<>"')]+|\bwww\.[^\s<>"')]+/giu],
-    ['email', /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gu],
-    ['uuid', /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/giu],
-    ['iban', /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})?\b/gu],
-    ['coord', /-?\d{1,2}\.\d{3,},\s?-?\d{1,3}\.\d{3,}/gu],
-    ['color', /(?<![\w&])#(?:[0-9a-f]{6}|[0-9a-f]{3})\b/giu],
-    ['ip', /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu],
-    ['date', /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?Z?)?|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b\d{1,2}(?:st|nd|rd|th)?\s(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s\d{4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s\d{1,2}(?:st|nd|rd|th)?,?\s\d{4}\b/giu],
-    ['time', /\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m\b)?/giu],
-    ['version', /\bv\d+(?:\.\d+){1,3}(?:-[\w.]+)?\b|\b\d+\.\d+\.\d+-[\w.]+\b/gu],
-    ['card', /\b(?:\d[ -]?){12,18}\d\b/gu],
-    ['phone', /(?:\+\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}\b/gu],
-    ['hashtag', /(?<![\w])#[\p{L}\w]+/gu],
-    ['mention', /(?<![\w])@[\w.]+/gu],
-    ['id', /\b(?=[A-Z0-9-]*\d)(?=[A-Z0-9-]*[A-Z])[A-Z0-9]+(?:-[A-Z0-9]+)+\b|\b[A-Z]{2,}\d{3,}\b/gu],
-    ['money', new RegExp('(?:(?:' + CURS + ')\\s?' + NUM + '(?:\\s?[km](?![\\p{L}]))?|' + NUM + '\\s?(?:' + CURS + '|dollars?|euros?)(?![\\p{L}]))', 'giu')],
-    ['percent', new RegExp(NUM + '\\s?%', 'gu')],
-    ['qty', new RegExp(NUM + '\\s?(?:' + UNITS + ')(?![\\p{L}\\p{N}])', 'giu')],
-    ['num', new RegExp('(?<![\\p{L}\\d])' + NUM, 'gu')]
+    ['email', /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gu, '@'],
+    ['uuid', /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/giu, '-'],
+    ['iban', /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})?\b/gu, DIGIT],
+    ['coord', /-?\d{1,2}\.\d{3,},\s?-?\d{1,3}\.\d{3,}/gu, ','],
+    ['color', /(?<![\w&])#(?:[0-9a-f]{6}|[0-9a-f]{3})\b/giu, '#'],
+    ['ip', /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu, '.'],
+    ['date', /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?Z?)?|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b\d{1,2}(?:st|nd|rd|th)?\s(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s\d{4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s\d{1,2}(?:st|nd|rd|th)?,?\s\d{4}\b/giu, DIGIT],
+    ['time', /\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m\b)?/giu, ':'],
+    ['version', /\bv\d+(?:\.\d+){1,3}(?:-[\w.]+)?\b|\b\d+\.\d+\.\d+-[\w.]+\b/gu, '.'],
+    ['card', /\b(?:\d[ -]?){12,18}\d\b/gu, DIGIT],
+    ['phone', /(?:\+\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}\b/gu, DIGIT],
+    ['hashtag', /(?<![\w])#[\p{L}\w]+/gu, '#'],
+    ['mention', /(?<![\w])@[\w.]+/gu, '@'],
+    ['id', /\b(?=[A-Z0-9-]*\d)(?=[A-Z0-9-]*[A-Z])[A-Z0-9]+(?:-[A-Z0-9]+)+\b|\b[A-Z]{2,}\d{3,}\b/gu, DIGIT],
+    ['money', new RegExp('(?:(?:' + CURS + ')\\s?' + NUM + '(?:\\s?[km](?![\\p{L}]))?|' + NUM + '\\s?(?:' + CURS + '|dollars?|euros?)(?![\\p{L}]))', 'giu'), DIGIT],
+    ['percent', new RegExp(NUM + '\\s?%', 'gu'), '%'],
+    ['qty', new RegExp(NUM + '\\s?(?:' + UNITS + ')(?![\\p{L}\\p{N}])', 'giu'), DIGIT],
+    ['num', new RegExp('(?<![\\p{L}\\d])' + NUM, 'gu'), DIGIT]
   ];
   const TYPE = { card: 'Card number', uuid: 'UUID', iban: 'IBAN', coord: 'Coordinates', color: 'Colour', version: 'Version', text: 'Text', url: 'URL', email: 'Email', ip: 'IP', date: 'Date', time: 'Time', phone: 'Phone', hashtag: 'Hashtag', mention: 'Mention', id: 'ID', money: 'Amount', percent: 'Percent', qty: 'Quantity', num: 'Number' };
   const BOILER = /^(sent from my|unsubscribe|click here|view (this )?in (your )?browser|all rights reserved|copyright|©|privacy policy|terms (of|&) (use|service)|we use cookies|accept (all )?cookies|follow us|share this|advertisement|sponsored|read more$|skip to (main )?content|back to top|page \d+ (of|\/) \d+$|loading\.*$|show more$|reply$|like$|forwarded message)/i;
@@ -123,9 +124,14 @@ const TXT = (() => {
     return [['', t.raw]];
   }
 
+  const PLAIN_NUM = /^-?\d{1,12}(?:\.\d{1,12})?$/, PLAIN_WORD = /^\p{L}+$/u;
+  const push = (map, k, v) => { const a = map.get(k); if (a) a.push(v); else map.set(k, [v]); };
   function tokenize(line) {
+    if (PLAIN_NUM.test(line)) return [{ type: 'num', raw: line, i: 0 }];
+    if (PLAIN_WORD.test(line)) return [{ type: 'text', raw: line, i: 0 }];
     let rest = line; const toks = [];
-    for (const [type, re] of TOK) {
+    for (const [type, re, need] of TOK) {
+      if (need && (typeof need === 'string' ? !line.includes(need) : !need.test(line))) continue;
       re.lastIndex = 0;
       rest = rest.replace(re, (m, ...a) => { const idx = a.find(x => typeof x === 'number'); toks.push({ type, raw: m.trim(), i: idx }); return ' '.repeat(m.length); });
     }
@@ -205,7 +211,7 @@ const TXT = (() => {
       const blocks = []; let cur = null, last = -2;
       kv.forEach(x => { const key = x.k.toLowerCase(); if (!cur || x.i !== last + 1 || brk[x.i] || cur.has(key)) { cur = new Map(); cur.lines = []; blocks.push(cur); } cur.set(key, x); cur.lines.push(x.i); last = x.i; });
       const sigOf = b => [...b.keys()].sort().join('|'), bySig = new Map();
-      blocks.forEach(b => bySig.set(sigOf(b), [...(bySig.get(sigOf(b)) || []), b]));
+      blocks.forEach(b => push(bySig, sigOf(b), b));
       const loose = [];
       bySig.forEach(bs => {
         if (bs.length >= 2 && bs[0].size >= 2) {
@@ -221,7 +227,7 @@ const TXT = (() => {
       }
     }
     const pool = kept.map((l, i) => ({ l, i, t: toks[i], sig: toks[i].map(t => t.type).join(' ') })).filter(r => !used.has(r.i) && r.t.some(t => t.type !== 'text'));
-    const groups = new Map(); pool.forEach(r => groups.set(r.sig, [...(groups.get(r.sig) || []), r]));
+    const groups = new Map(); pool.forEach(r => push(groups, r.sig, r));
     const clusters = [...groups.values()].filter(g => g.length >= 2).sort((a, b) => b.length - a.length);
     clusters.forEach(g => {
       g.forEach(r => used.add(r.i));
@@ -236,7 +242,7 @@ const TXT = (() => {
       tables.push(foldConst(dropEmpty({ title: hdr ? 'Table under “' + kept[prev].trim().slice(0, 40) + '”' : 'Repeating line pattern', pattern: slots.map(t => TYPE[t.type]).join(' · ') + ' — ' + g.length + ' lines share this shape', head, rows: g.map(r => r.t.flatMap(t => expand(t).map(x => x[1]))) })));
     });
     const rest = pool.filter(r => !used.has(r.i)), core = new Map();
-    rest.forEach(r => { const k = r.t.filter(t => t.type !== 'text').map(t => t.type).join(' '); core.set(k, [...(core.get(k) || []), r]); });
+    rest.forEach(r => { const k = r.t.filter(t => t.type !== 'text').map(t => t.type).join(' '); push(core, k, r); });
     [...core.entries()].filter(([, g]) => g.length >= 2).forEach(([k, g]) => {
       g.forEach(r => used.add(r.i));
       const typed = g[0].t.filter(t => t.type !== 'text');
@@ -257,20 +263,33 @@ const TXT = (() => {
     return { kept, removed, blank, html, tables, entities: [...ent.values()], dims, prose, pairs: kv.map(x => ({ k: x.k, v: x.v, line: x.i + 1 })), used: [...used] };
   }
 
-  return { analyze, TYPE, parseNum };
+  return { analyze, TYPE, parseNum, isoDate };
 })();
 
-let txtTables = [];
+let txtTables = [], txtNums = null, txtRun = 0;
+const typeCache = new Map();
+const typeCmp = (a, b) => { if (a === b) return 0; const k = a + '\u0000' + b; let v = typeCache.get(k); if (v === undefined) { v = a.localeCompare(b); typeCache.set(k, v); } return v; };
 function extractText() {
-  const src = $('#text-input').value, out = $('#text-out');
+  const src = $('#text-input').value, out = $('#text-out'), run = ++txtRun;
   if (!src.trim()) { out.innerHTML = ''; return; }
+  if (src.length > 150000) {
+    out.innerHTML = '<div class="card"><p class="tstat">Analyzing ' + src.split('\n').length.toLocaleString('en-US') + ' lines…</p></div>';
+    setTimeout(() => {
+      if (run !== txtRun) return;
+      try { extractTextNow(src, out); } catch (e) { out.innerHTML = '<div class="card"><p>Could not analyze this text: ' + esc(e.message) + '</p></div>'; }
+    }, 30);
+    return;
+  }
+  extractTextNow(src, out);
+}
+function extractTextNow(src, out) {
   const a = TXT.analyze(src);
   if (!a.kept.length) { out.innerHTML = '<div class="card"><p>Nothing usable found.</p></div>'; return; }
-  const N = NUMS.analyze(a);
+  const N = NUMS.analyze(a); txtNums = N;
   const proseWords = a.prose.join(' ').split(/\s+/).filter(Boolean).length;
   const ec = {}; a.entities.forEach(e => ec[e.type] = (ec[e.type] || 0) + e.count);
   txtTables = [...a.tables];
-  if (a.entities.length) txtTables.push({ title: 'Entities', pattern: a.entities.length + ' unique values across all lines', head: ['Type', 'Raw', 'Normalized', 'Validation', 'Count', 'Lines'], rows: a.entities.sort((x, y) => x.type.localeCompare(y.type) || y.count - x.count).map(e => [e.type, e.raw, e.norm, e.check || '', e.count, e.lines.join(', ')]), types: [] });
+  if (a.entities.length) txtTables.push({ title: 'Entities', pattern: a.entities.length + ' unique values across all lines', head: ['Type', 'Raw', 'Normalized', 'Validation', 'Count', 'Lines'], rows: a.entities.sort((x, y) => typeCmp(x.type, y.type) || y.count - x.count).map(e => [e.type, e.raw, e.norm, e.check || '', e.count, e.lines.join(', ')]), types: [] });
   const chips = [
     ...a.tables.map((t, i) => '<a class="chip" href="#ttable-' + i + '">' + esc(t.title) + ' <b>' + t.rows.length + '</b></a>'),
     ...NUMS.chips(N),
@@ -280,12 +299,20 @@ function extractText() {
   const removedN = a.removed.length;
   const card = (t, i) => {
     const nt = N.tables[i], small = j => nt && nt.formula[j] ? '= ' + nt.formula[j] : t.types && t.types[j] && t.types[j] !== t.head[j] ? t.types[j] : '';
-    return '<article class="card ttable" id="ttable-' + i + '"><div class="thead"><div><h3>' + esc(t.title) + '</h3><p>' + esc(t.pattern) + ' · ' + t.rows.length + ' rows</p></div><div class="row"><button class="btn ghost sm" data-csv="' + i + '">CSV</button><button class="btn ghost sm" data-tsv="' + i + '">Copy</button></div></div><div class="tablewrap tall"><table><thead><tr>' + t.head.map((h, j) => '<th>' + esc(h) + (small(j) ? '<small>' + esc(small(j)) + '</small>' : '') + '</th>').join('') + '</tr></thead><tbody>' + t.rows.slice(0, 1000).map((r, ri) => '<tr>' + t.head.map((_, j) => { const b = nt && nt.bad[ri + ',' + j]; return '<td' + (b ? ' class="bad" title="' + esc(b) + '"' : '') + '>' + esc(r[j] ?? '') + '</td>'; }).join('') + '</tr>').join('') + '</tbody></table></div>' + (nt ? NUMS.render(nt) : '') + '</article>';
+    return '<article class="card ttable" id="ttable-' + i + '"><div class="thead"><div><h3>' + esc(t.title) + '</h3><p>' + esc(t.pattern) + ' · ' + t.rows.length + ' rows</p></div><div class="row"><button class="btn ghost sm" data-csv="' + i + '">CSV</button><button class="btn ghost sm" data-tsv="' + i + '">Copy</button>' + (NUMS.hasFindings(nt) ? '<button class="btn ghost sm" data-findings="' + i + '">Findings</button>' : '') + '</div></div><div class="tablewrap tall"><table><thead><tr>' + t.head.map((h, j) => '<th>' + esc(h) + (small(j) ? '<small>' + esc(small(j)) + '</small>' : '') + '</th>').join('') + '</tr></thead><tbody>' + t.rows.slice(0, 1000).map((r, ri) => '<tr>' + t.head.map((_, j) => { const b = nt && nt.bad[ri + ',' + j]; return '<td' + (b ? ' class="bad" title="' + esc(b) + '"' : '') + '>' + esc(r[j] ?? '') + '</td>'; }).join('') + '</tr>').join('') + '</tbody></table></div>' + (nt ? NUMS.render(nt) : '') + '</article>';
   };
   out.innerHTML = (proseWords >= 40 || !WRITING.analyze(src).gate ? WRITING.render(src) : '') + '<div class="card"><h4>Recognized patterns</h4><div class="chips">' + (chips || '<span class="chip">No structure found</span>') + '</div><p class="tstat">' + a.kept.length + ' clean lines · ' + removedN + ' junk removed' + (a.html ? ' · HTML stripped on ' + a.html + ' lines' : '') + ' · ' + a.blank + ' blank lines</p></div>' + txtTables.map(card).join('') + N.lines.map(NUMS.renderLine).join('') + (a.prose.length ? '<details class="card"><summary>Unstructured text lines (' + a.prose.length + ')</summary><ul class="drivers">' + a.prose.slice(0, 200).map(l => '<li>' + esc(l) + '</li>').join('') + '</ul></details>' : '') + (removedN ? '<details class="card"><summary>Removed as junk (' + removedN + ')</summary><div class="tablewrap"><table><thead><tr><th>Line</th><th>Reason</th></tr></thead><tbody>' + a.removed.slice(0, 300).map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td></tr>').join('') + '</tbody></table></div></details>' : '');
 }
 
 $('#text-out').addEventListener('click', e => {
+  const f = e.target.closest('[data-findings]');
+  if (f) {
+    const i = +f.dataset.findings, nt = txtNums && txtNums.tables[i], t = txtTables[i]; if (!nt || !t) return;
+    const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"', a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\ufeff' + NUMS.findings(nt).map(r => r.map(q).join(',')).join('\n')], { type: 'text/csv' }));
+    a.download = t.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-findings.csv'; a.click();
+    return;
+  }
   const b = e.target.closest('[data-csv],[data-tsv]'); if (!b) return;
   const t = txtTables[+(b.dataset.csv ?? b.dataset.tsv)], all = [t.head, ...t.rows];
   if (b.dataset.csv !== undefined) {

@@ -17,7 +17,7 @@ Answer one question honestly: what can be measured about this file or text, and 
 - **Camera match** (js/prnu.js, in the Files tab): PRNU sensor fingerprint built with a maximum-likelihood estimate from reference photos; tests other photos with PCE over a 512 px centre crop and all 4 rotations; threshold PCE 60. Synthetic test: same sensor PCE ≈ 10⁵, different sensor 6.7.
 - **C2PA trust**: certificate chain signatures are verified, then matched against the bundled official C2PA conformance trust list (trust/c2pa-trust-list.pem). MP4/MOV BMFF hashes (v1/v2, top-level exclusions) are recomputed for unfragmented files under 400 MB.
 - **Text · Numbers** (js/text.js): typed tokens with validation (Luhn, IBAN mod-97, calendar dates, IP ranges, coordinates, email). Tables from delimited text, key:value records and repeating line shapes; numeric column stats and MAD outlier flags.
-- **Number patterns** (js/numbers.js, inside the Text · Numbers tab): tests row equations (A + B, A × B, × constant, running totals), column sequences (step, ratio, polynomial, Fibonacci-like), totals and digit habits. Each relation shows how many rows it holds in and how often shuffled values match as well, corrected for every relation tested. Rows that break a relation are highlighted. No grid, no formulas to type. It finds the relations the numbers already follow and flags the rows that break them.
+- **Number patterns** (js/numbers.js, inside the Text · Numbers tab): tests row equations (A + B, A × B, × constant, running totals, averages of neighbouring columns, share of total), date offsets (Due = Invoice + 30 days), column sequences (step with missing values and dates, ratio, polynomial, Fibonacci-like), totals and digit habits (last digit, rounding, Benford with a χ² p-value). Each relation shows how many rows it holds in and how often shuffled values match as well, corrected for every relation tested. Rows that break a relation are highlighted, and the Findings button exports them as CSV. No grid, no formulas to type. It finds the relations the numbers already follow and flags the rows that break them.
 - **References**: comparison with online detectors (trained classifiers, provenance verifiers, vendor watermark tools, forensic toolkits, AI-text detectors) plus the sources behind every check.
 
 ## Design
@@ -31,6 +31,7 @@ One set of tokens (radius, font sizes, gap, pill shape, three control heights: 2
 - SynthID cannot be decoded client-side.
 - There is no trained classifier, so many clean generated images without tags will show as Inconclusive.
 - Number patterns only test the relation families listed; a relation that holds in fewer than 4 rows, or by plausible chance, is not shown.
+- Relations are searched in the first 1,000 rows and then re-checked on every row; column stats, totals and digit checks always use every row. Number lists are analysed up to 200,000 values.
 
 ## Files
 index.html, css/style.css, js/app.js, js/provenance.js, js/jpeg.js, js/writing.js, js/numbers.js, js/text.js, js/prnu.js, js/dropdown.js, trust/c2pa-trust-list.pem, favicon.svg, images/logo.jpg. No data tables.
