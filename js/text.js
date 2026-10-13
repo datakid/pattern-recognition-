@@ -276,7 +276,7 @@ function extractText() {
     out.innerHTML = '<div class="card"><p class="tstat">Analyzing ' + src.split('\n').length.toLocaleString('en-US') + ' lines…</p></div>';
     setTimeout(() => {
       if (run !== txtRun) return;
-      try { extractTextNow(src, out); } catch (e) { out.innerHTML = '<div class="card"><p>Could not analyze this text: ' + esc(e.message) + '</p></div>'; }
+      try { extractTextNow(src, out); } catch (e) { out.innerHTML = '<div class="card"><p>Could not analyze this text: ' + UTIL.esc(e.message) + '</p></div>'; }
     }, 30);
     return;
   }
@@ -291,7 +291,7 @@ function extractTextNow(src, out) {
   txtTables = [...a.tables];
   if (a.entities.length) txtTables.push({ title: 'Entities', pattern: a.entities.length + ' unique values across all lines', head: ['Type', 'Raw', 'Normalized', 'Validation', 'Count', 'Lines'], rows: a.entities.sort((x, y) => typeCmp(x.type, y.type) || y.count - x.count).map(e => [e.type, e.raw, e.norm, e.check || '', e.count, e.lines.join(', ')]), types: [] });
   const chips = [
-    ...a.tables.map((t, i) => '<a class="chip" href="#ttable-' + i + '">' + esc(t.title) + ' <b>' + t.rows.length + '</b></a>'),
+    ...a.tables.map((t, i) => '<a class="chip" href="#ttable-' + i + '">' + UTIL.esc(t.title) + ' <b>' + t.rows.length + '</b></a>'),
     ...NUMS.chips(N),
     ...Object.entries(ec).map(([k, v]) => '<span class="chip">' + k + ' <b>' + v + '</b></span>'),
     ...Object.entries(a.dims).map(([k, v]) => '<span class="chip">' + k + ' <b>' + v + '</b></span>')
@@ -299,9 +299,9 @@ function extractTextNow(src, out) {
   const removedN = a.removed.length;
   const card = (t, i) => {
     const nt = N.tables[i], small = j => nt && nt.formula[j] ? '= ' + nt.formula[j] : t.types && t.types[j] && t.types[j] !== t.head[j] ? t.types[j] : '';
-    return '<article class="card ttable" id="ttable-' + i + '"><div class="thead"><div><h3>' + esc(t.title) + '</h3><p>' + esc(t.pattern) + ' · ' + t.rows.length + ' rows</p></div><div class="row"><button class="btn ghost sm" data-csv="' + i + '">CSV</button><button class="btn ghost sm" data-tsv="' + i + '">Copy</button>' + (NUMS.hasFindings(nt) ? '<button class="btn ghost sm" data-findings="' + i + '">Findings</button>' : '') + '</div></div><div class="tablewrap tall"><table><thead><tr>' + t.head.map((h, j) => '<th>' + esc(h) + (small(j) ? '<small>' + esc(small(j)) + '</small>' : '') + '</th>').join('') + '</tr></thead><tbody>' + t.rows.slice(0, 1000).map((r, ri) => '<tr>' + t.head.map((_, j) => { const b = nt && nt.bad[ri + ',' + j]; return '<td' + (b ? ' class="bad" title="' + esc(b) + '"' : '') + '>' + esc(r[j] ?? '') + '</td>'; }).join('') + '</tr>').join('') + '</tbody></table></div>' + (nt ? NUMS.render(nt) : '') + '</article>';
+    return '<article class="card ttable" id="ttable-' + i + '"><div class="thead"><div><h3>' + UTIL.esc(t.title) + '</h3><p>' + UTIL.esc(t.pattern) + ' · ' + t.rows.length + ' rows</p></div><div class="row"><button class="btn ghost sm" data-csv="' + i + '">CSV</button><button class="btn ghost sm" data-tsv="' + i + '">Copy</button>' + (NUMS.hasFindings(nt) ? '<button class="btn ghost sm" data-findings="' + i + '">Findings</button>' : '') + '</div></div><div class="tablewrap tall"><table><thead><tr>' + t.head.map((h, j) => '<th>' + UTIL.esc(h) + (small(j) ? '<small>' + UTIL.esc(small(j)) + '</small>' : '') + '</th>').join('') + '</tr></thead><tbody>' + t.rows.slice(0, 1000).map((r, ri) => '<tr>' + t.head.map((_, j) => { const b = nt && nt.bad[ri + ',' + j]; return '<td' + (b ? ' class="bad" title="' + UTIL.esc(b) + '"' : '') + '>' + UTIL.esc(r[j] ?? '') + '</td>'; }).join('') + '</tr>').join('') + '</tbody></table></div>' + (nt ? NUMS.render(nt) : '') + '</article>';
   };
-  out.innerHTML = (proseWords >= 40 || !WRITING.analyze(src).gate ? WRITING.render(src) : '') + '<div class="card"><h4>Recognized patterns</h4><div class="chips">' + (chips || '<span class="chip">No structure found</span>') + '</div><p class="tstat">' + a.kept.length + ' clean lines · ' + removedN + ' junk removed' + (a.html ? ' · HTML stripped on ' + a.html + ' lines' : '') + ' · ' + a.blank + ' blank lines</p></div>' + txtTables.map(card).join('') + N.lines.map(NUMS.renderLine).join('') + (a.prose.length ? '<details class="card"><summary>Unstructured text lines (' + a.prose.length + ')</summary><ul class="drivers">' + a.prose.slice(0, 200).map(l => '<li>' + esc(l) + '</li>').join('') + '</ul></details>' : '') + (removedN ? '<details class="card"><summary>Removed as junk (' + removedN + ')</summary><div class="tablewrap"><table><thead><tr><th>Line</th><th>Reason</th></tr></thead><tbody>' + a.removed.slice(0, 300).map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td></tr>').join('') + '</tbody></table></div></details>' : '');
+  out.innerHTML = (proseWords >= 40 || !WRITING.analyze(src).gate ? WRITING.render(src) : '') + '<div class="card"><h4>Recognized patterns</h4><div class="chips">' + (chips || '<span class="chip">No structure found</span>') + '</div><p class="tstat">' + a.kept.length + ' clean lines · ' + removedN + ' junk removed' + (a.html ? ' · HTML stripped on ' + a.html + ' lines' : '') + ' · ' + a.blank + ' blank lines</p></div>' + txtTables.map(card).join('') + N.lines.map(NUMS.renderLine).join('') + (a.prose.length ? '<details class="card"><summary>Unstructured text lines (' + a.prose.length + ')</summary><ul class="drivers">' + a.prose.slice(0, 200).map(l => '<li>' + UTIL.esc(l) + '</li>').join('') + '</ul></details>' : '') + (removedN ? '<details class="card"><summary>Removed as junk (' + removedN + ')</summary><div class="tablewrap"><table><thead><tr><th>Line</th><th>Reason</th></tr></thead><tbody>' + a.removed.slice(0, 300).map(r => '<tr><td>' + UTIL.esc(r[0]) + '</td><td>' + r[1] + '</td></tr>').join('') + '</tbody></table></div></details>' : '');
 }
 
 $('#text-out').addEventListener('click', e => {

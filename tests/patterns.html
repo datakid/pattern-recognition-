@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Number pattern tests</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<main>
+<h1>Number pattern tests</h1>
+<pre id="out"></pre>
+</main>
+<div hidden>
+<textarea id="text-input"></textarea>
+<button id="text-run"></button>
+<button id="text-sample"></button>
+<div id="text-out"></div>
+</div>
+<script>const $ = s => document.querySelector(s);</script>
+<script src="../js/util.js"></script>
+<script src="../js/writing.js"></script>
+<script src="../js/sequence.js"></script>
+<script src="../js/numbers.js"></script>
+<script src="../js/text.js"></script>
+<script>
+const run = src => NUMS.analyze(TXT.analyze(src));
+const seqsOf = N => N.lines.flatMap(l => l.seqs);
+const only = N => { const s = seqsOf(N); return s.length === 1 ? s[0] : null; };
+const nextOf = s => s.next === null ? null : s.fmt(s.next);
+const brief = N => JSON.stringify({
+  lines: N.lines.map(l => l.seqs.map(s => ({ family: s.family, desc: s.desc, k: s.k, n: s.n, excN: s.excN, exc: s.exc.map(e => [e.row + 1, s.fmt(e.expected), s.fmt(e.found)]), next: nextOf(s), filled: s.filled.map(f => [f.i + 1, s.fmt(f.v)]), ambiguous: s.ambiguous }))),
+  tables: N.tables.map(t => t && t.eqs.map(e => ({ text: e.text, k: e.k, n: e.n, exc: e.exc.map(x => [x.row + 1, e.fmt(x.expected), e.fmt(x.found)]) })))
+});
+const listCase = (name, src, test) => ({ name, src, test: N => { const s = only(N); return s && test(s) ? null : brief(N); } });
+const noneCase = (name, src, test) => ({ name, src, test: N => test(N) ? null : brief(N) });
+const cases = [
+  listCase('step 4n − 1', '3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47', s => s.family === 'step' && s.desc.startsWith('4n − 1') && nextOf(s) === '51'),
+  listCase('one wrong value is one exception', '3, 7, 11, 15, 19, 24, 27, 31, 35, 39, 43, 47', s => s.family === 'step' && s.excN === 1 && s.exc.length === 1 && s.exc[0].row === 5 && s.fmt(s.exc[0].expected) === '23' && s.fmt(s.exc[0].found) === '24' && s.next === null),
+  listCase('Fibonacci', '1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610', s => s.desc === 'each value is the sum of the previous two' && nextOf(s) === '987'),
+  listCase('Fibonacci with ?', '1, 1, 2, 3, ?, 8, 13, 21, 34, 55, 89, 144', s => s.filled.length === 1 && s.filled[0].i === 4 && s.fmt(s.filled[0].v) === '5'),
+  listCase('squares', '1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144', s => s.desc.startsWith('n²') && nextOf(s) === '169'),
+  listCase('triangular numbers', '1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78', s => s.desc.startsWith('(n² + n) / 2') && nextOf(s) === '91'),
+  listCase('primes', '2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37', s => s.desc === 'Prime numbers' && nextOf(s) === '41'),
+  listCase('powers of two beyond 64 bits', '1152921504606846976, 2305843009213693952, 4611686018427387904, 9223372036854775808, 18446744073709551616, 36893488147419103232, 73786976294838206464, 147573952589676412928', s => s.desc === '× 2 each row' && nextOf(s) === '295147905179352825856'),
+  noneCase('digits of pi: no rule', '3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9', N => seqsOf(N).length === 0),
+  noneCase('1, 2, 4, 8, 16, 31: no next value', '1, 2, 4, 8, 16, 31', N => seqsOf(N).every(s => s.next === null)),
+  noneCase('1, 2, 4, ?: ? not filled', '1, 2, 4, ?', N => seqsOf(N).every(s => s.filled.length === 0)),
+  {
+    name: 'table: Total = Qty × Price, row L flagged',
+    src: 'Item,Qty,Price,Total\nA,2,3.50,7.00\nB,5,1.20,6.00\nC,3,4.00,12.00\nD,7,2.25,15.75\nE,1,9.99,9.99\nF,4,0.75,3.00\nG,6,5.10,30.60\nH,8,1.15,9.20\nI,10,2.00,20.00\nJ,3,3.33,9.99\nK,9,1.10,9.90\nL,2,7.45,15.00',
+    test: N => {
+      const t = N.tables.find(Boolean), e = t && t.eqs.find(q => q.text.startsWith('Total') && q.text.includes('Qty') && q.text.includes('Price'));
+      const ok = e && e.k === 11 && e.n === 12 && e.exc.length === 1 && e.exc[0].row === 11 && e.fmt(e.exc[0].expected) === '14.90' && e.fmt(e.exc[0].found) === '15.00';
+      return ok ? null : brief(N);
+    }
+  }
+];
+const out = [];
+for (const c of cases) {
+  let r;
+  try { r = c.test(run(c.src)); } catch (err) { r = 'threw ' + err.message; }
+  out.push((r === null ? 'PASS ' : 'FAIL ') + c.name + (r === null ? '' : '\n  ' + r));
+}
+document.getElementById('out').textContent = out.join('\n');
+</script>
+</body>
+</html>

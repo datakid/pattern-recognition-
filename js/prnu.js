@@ -79,8 +79,8 @@ const PRNU = (() => {
       try {
         const t = await PRNU.load(f), r = PRNU.test(st.K, t), p = r.pce;
         const v = p > 60 ? 'Match' : p > 25 ? 'Weak, inconclusive' : 'No match';
-        rows.push('<tr><td>' + esc(f.name) + '<small>' + t.size + '</small></td><td>' + p.toFixed(1) + '</td><td class="to ' + (p > 60 ? 'to-real' : '') + '">' + v + '</td><td>' + r.rot + '°</td><td>' + (p > 60 ? 'Same sensor fingerprint as the references' : p > 25 ? 'Below the published threshold' : 'Different camera, or resized, cropped, stabilised or heavily compressed') + '</td></tr>');
-      } catch (er) { rows.push('<tr><td>' + esc(f.name) + '</td><td>—</td><td>Error</td><td></td><td>' + esc(er.message) + '</td></tr>'); }
+        rows.push('<tr><td>' + UTIL.esc(f.name) + '<small>' + t.size + '</small></td><td>' + p.toFixed(1) + '</td><td class="to ' + (p > 60 ? 'to-real' : '') + '">' + v + '</td><td>' + r.rot + '°</td><td>' + (p > 60 ? 'Same sensor fingerprint as the references' : p > 25 ? 'Below the published threshold' : 'Different camera, or resized, cropped, stabilised or heavily compressed') + '</td></tr>');
+      } catch (er) { rows.push('<tr><td>' + UTIL.esc(f.name) + '</td><td>—</td><td>Error</td><td></td><td>' + UTIL.esc(er.message) + '</td></tr>'); }
     }
     out.innerHTML = '<div class="tablewrap"><table><thead><tr><th>Photo</th><th>PCE</th><th>Result</th><th>Rotation</th><th>Meaning</th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
     status('Done. PCE above 60 is the threshold used in published large-scale tests.');

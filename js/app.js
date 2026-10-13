@@ -1,6 +1,4 @@
 const $ = s => document.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const root = document.documentElement;
 const setTheme = t => { root.dataset.theme = t; localStorage.setItem('vl-theme', t); document.querySelectorAll('#theme-switch button').forEach(b => b.classList.toggle('active', b.dataset.theme === t)); };
@@ -102,7 +100,7 @@ const REF_GROUPS = [
     [['Bonferroni correction (multiple comparisons)', 'https://en.wikipedia.org/wiki/Bonferroni_correction'], 'Chance figure', 'Testing many relations makes some match by luck, so each chance is multiplied by the number tested']
   ]]
 ];
-$('#refs-out').innerHTML = REF_GROUPS.map(([g, items]) => '<article class="card"><h3>' + g + '</h3><div class="tablewrap"><table><thead><tr><th>Source</th><th>Used by</th><th>Why it matters</th></tr></thead><tbody>' + items.map(([r, use, why]) => '<tr><td>' + (r[1] ? '<a href="' + r[1] + '" target="_blank" rel="noopener">' + esc(r[0]) + '</a>' : esc(r[0])) + '</td><td>' + esc(use) + '</td><td>' + esc(why) + '</td></tr>').join('') + '</tbody></table></div></article>').join('');
+$('#refs-out').innerHTML = REF_GROUPS.map(([g, items]) => '<article class="card"><h3>' + g + '</h3><div class="tablewrap"><table><thead><tr><th>Source</th><th>Used by</th><th>Why it matters</th></tr></thead><tbody>' + items.map(([r, use, why]) => '<tr><td>' + (r[1] ? '<a href="' + r[1] + '" target="_blank" rel="noopener">' + UTIL.esc(r[0]) + '</a>' : UTIL.esc(r[0])) + '</td><td>' + UTIL.esc(use) + '</td><td>' + UTIL.esc(why) + '</td></tr>').join('') + '</tbody></table></div></article>').join('');
 
 const GEN = [
   ['OpenAI / ChatGPT / DALL·E / Sora', /chatgpt|gpt[-_ ]?4o|gpt[-_ ]?image|dall[-_ ·]?e|openai|sora/i],
@@ -122,7 +120,6 @@ const GEN = [
 ];
 const CAMERA = /(Canon|NIKON|SONY|Apple|iPhone|samsung|Google Pixel|Pixel \d|FUJIFILM|OLYMPUS|OM Digital|Panasonic|HUAWEI|Xiaomi|OnePlus|LEICA|Hasselblad|DJI|GoPro|Ricoh|PENTAX|motorola|OPPO|vivo)[^\0\n]{0,28}/;
 
-function sig(name, value, dir, w, why, ref) { return { name, value, dir, w, why, ref }; }
 
 function scanMeta(buf, fname) {
   const n = Math.min(buf.byteLength, 4000000);
@@ -137,37 +134,37 @@ function scanMeta(buf, fname) {
     const gen = (t.match(/claim_generator[^\w]{0,6}([\x20-\x7e]{3,60})/) || [])[1] || '';
     const who = GEN.find(g => g[1].test(t.slice(Math.max(0, t.indexOf('c2pa') - 2000), t.indexOf('c2pa') + 60000)));
     const ai = /trainedAlgorithmicMedia|compositeWithTrainedAlgorithmicMedia|c2pa\.created[\s\S]{0,400}algorithm/i.test(t);
-    out.push(sig('C2PA (string scan)', (gen || 'manifest present') + (who ? ' · ' + who[0] : ''), ai || who ? 'ai' : 'neutral', ai || who ? 45 : 5, ai ? 'Manifest declares an AI-generated source' : who ? 'Manifest names an AI vendor' : 'Provenance manifest exists; signer not verified', REF.c2pa));
+    out.push(UTIL.sig('C2PA (string scan)', (gen || 'manifest present') + (who ? ' · ' + who[0] : ''), ai || who ? 'ai' : 'neutral', ai || who ? 45 : 5, ai ? 'Manifest declares an AI-generated source' : who ? 'Manifest names an AI vendor' : 'Provenance manifest exists; signer not verified', REF.c2pa));
     if (ai || who) { info.strong = true; info.strongHeur = true; }
   }
   const dst = t.match(/digitalsourcetype[^\w]{0,40}[^"<]*?(trainedAlgorithmicMedia|compositeWithTrainedAlgorithmicMedia|algorithmicMedia|compositeSynthetic|digitalCapture|computationalCapture|screenCapture)/i);
   if (dst) {
     const v = dst[1], ai = /algorithmic|Synthetic/i.test(v);
-    out.push(sig('IPTC DigitalSourceType', v, ai ? 'ai' : 'real', ai ? 45 : -20, ai ? 'Publisher declared AI origin' : 'Declared capture source', REF.iptc));
+    out.push(UTIL.sig('IPTC DigitalSourceType', v, ai ? 'ai' : 'real', ai ? 45 : -20, ai ? 'Publisher declared AI origin' : 'Declared capture source', REF.iptc));
     if (ai) info.strong = true;
   }
   const params = t.match(/(parameters|prompt|workflow|Dream|Description|Comment)\0([\x20-\x7e\n]{10,300})/);
   if (params && /steps|sampler|cfg|seed|negative prompt|class_type|model/i.test(params[2])) {
-    out.push(sig('Generator text chunk', params[2].slice(0, 120).replace(/\n/g, ' ') + '…', 'ai', 45, 'Diffusion settings embedded (steps/sampler/seed)', REF.diff));
+    out.push(UTIL.sig('Generator text chunk', params[2].slice(0, 120).replace(/\n/g, ' ') + '…', 'ai', 45, 'Diffusion settings embedded (steps/sampler/seed)', REF.diff));
     info.strong = true;
   }
   const soft = ((t.match(/(?:Software|CreatorTool|creator_tool|encoder|TSSE|TENC)[^\x20-\x7e]{0,8}([\x20-\x7e]{3,50})/i) || [])[1] || '').replace(/^[^\w]+|["'>]+$|"/g, '').trim();
   if (soft) {
     info.software = soft.trim();
     const g = GEN.slice(0, -1).find(x => x[1].test(soft));
-    out.push(sig('Software / encoder tag', soft.trim(), g ? 'ai' : /photoshop|lightroom|gimp|snapseed|picsart|canva|capture one|darktable|affinity|pixelmator|luminar|dxo/i.test(soft) ? 'proc' : 'neutral', g ? 35 : 0, g ? 'Tag names ' + g[0] : 'Editing/encoding software', REF.c2pa));
+    out.push(UTIL.sig('Software / encoder tag', soft.trim(), g ? 'ai' : /photoshop|lightroom|gimp|snapseed|picsart|canva|capture one|darktable|affinity|pixelmator|luminar|dxo/i.test(soft) ? 'proc' : 'neutral', g ? 35 : 0, g ? 'Tag names ' + g[0] : 'Editing/encoding software', REF.c2pa));
     if (g) info.strong = true;
   }
   const cam = t.match(CAMERA);
-  if (cam) { info.camera = cam[0].replace(/[^\x20-\x7e]/g, '').trim(); out.push(sig('Camera make/model', info.camera, 'real', -12, 'EXIF names a capture device (can be forged)', REF.prnu)); }
+  if (cam) { info.camera = cam[0].replace(/[^\x20-\x7e]/g, '').trim(); out.push(UTIL.sig('Camera make/model', info.camera, 'real', -12, 'EXIF names a capture device (can be forged)', REF.prnu)); }
   const exif = t.includes('Exif\0\0');
-  if (!exif && !cam && /JPEG|HEIF|WebP|PNG/.test(info.format)) out.push(sig('EXIF block', 'absent', 'proc', 0, 'Missing: typical for screenshots, social media, AI output', REF.c2pa));
-  if (/Screenshot|screencapture|screenCapture/i.test(t + fname)) { info.screenshot = true; out.push(sig('Screenshot marker', 'yes', 'proc', 0, 'Pixel traces unreliable after screen capture', REF.jpeg)); }
+  if (!exif && !cam && /JPEG|HEIF|WebP|PNG/.test(info.format)) out.push(UTIL.sig('EXIF block', 'absent', 'proc', 0, 'Missing: typical for screenshots, social media, AI output', REF.c2pa));
+  if (/Screenshot|screencapture|screenCapture/i.test(t + fname)) { info.screenshot = true; out.push(UTIL.sig('Screenshot marker', 'yes', 'proc', 0, 'Pixel traces unreliable after screen capture', REF.jpeg)); }
   const lens = /FocalLength|ExposureTime|FNumber|ISOSpeed/.test(t) || /\x82\x9a|\x82\x9d|\x88\x27/.test(t);
-  if (exif && lens) out.push(sig('Exposure fields', 'present', 'real', -8, 'Exposure/ISO/aperture tags exist', REF.prnu));
+  if (exif && lens) out.push(UTIL.sig('Exposure fields', 'present', 'real', -8, 'Exposure/ISO/aperture tags exist', REF.prnu));
   const fn = GEN.find(g => g[1].test(fname));
-  if (fn) out.push(sig('Filename hint', fname, 'neutral', 0, 'Name contains "' + fname.match(fn[1])[0] + '" → ' + fn[0] + '. User-editable, so it is shown but not scored', REF.name));
-  if (/synthid/i.test(t)) out.push(sig('SynthID mention', 'string found', 'ai', 20, 'Text reference only; watermark itself is invisible', REF.synthid));
+  if (fn) out.push(UTIL.sig('Filename hint', fname, 'neutral', 0, 'Name contains "' + fname.match(fn[1])[0] + '" → ' + fn[0] + '. User-editable, so it is shown but not scored', REF.name));
+  if (/synthid/i.test(t)) out.push(UTIL.sig('SynthID mention', 'string found', 'ai', 20, 'Text reference only; watermark itself is invisible', REF.synthid));
   return { list: out, info };
 }
 
@@ -182,16 +179,16 @@ async function provenance(f, u, meta) {
   const who = GEN.slice(0, -1).find(g => g[1].test(r.generator + ' ' + (r.signer.subject ? (r.signer.subject.O || '') + ' ' + (r.signer.subject.CN || '') : '') + ' ' + r.actions.join(' ')));
   const signer = r.signer.subject ? [r.signer.subject.CN, r.signer.subject.O].filter(Boolean).join(' · ') : '';
   const L = meta.list;
-  L.push(sig('C2PA manifest', (r.generator || r.label) + ' · ' + r.manifests + ' manifest' + (r.manifests > 1 ? 's' : '') + (r.ingredients ? ' · ' + r.ingredients + ' ingredient' + (r.ingredients > 1 ? 's' : '') : ''), 'neutral', 0, 'Parsed from JUMBF: ' + r.assertions.length + ' assertions' + (r.manifests > 1 ? '. Several manifests mean the file was edited after the first signature' : ''), REF.c2pa));
-  L.push(sig('C2PA signature', S + ' · ' + (r.sig.alg || '?') + (signer ? ' · ' + signer : '') + (r.signer.from ? ' · cert ' + r.signer.from + ' → ' + r.signer.to : ''), S === 'invalid' ? 'proc' : 'neutral', 0, S === 'valid' ? 'Cryptographically valid for the embedded certificate' : S === 'invalid' ? 'Signature does not match the claim: manifest was altered' : 'Could not verify in this browser (' + S + ')', REF.cose));
-  L.push(sig('C2PA content hash', H + (r.hash.alg ? ' · ' + r.hash.alg : ''), H === 'mismatch' ? 'proc' : 'neutral', 0, H === 'match' ? 'Pixels and bytes are exactly what was signed' : H === 'mismatch' ? 'File bytes changed after signing' : H === 'unchecked' ? 'Not recomputed (' + (r.hash.alg || '') + ')' : H === 'unconfirmed' ? 'BMFF hash variant not reproduced here; not treated as tampering' : 'No hash assertion', REF.c2pa));
-  if (r.actions.length) L.push(sig('C2PA actions', r.actions.slice(0, 6).join(' | '), 'neutral', 0, 'Edit history recorded by the signing tool', REF.c2pa));
+  L.push(UTIL.sig('C2PA manifest', (r.generator || r.label) + ' · ' + r.manifests + ' manifest' + (r.manifests > 1 ? 's' : '') + (r.ingredients ? ' · ' + r.ingredients + ' ingredient' + (r.ingredients > 1 ? 's' : '') : ''), 'neutral', 0, 'Parsed from JUMBF: ' + r.assertions.length + ' assertions' + (r.manifests > 1 ? '. Several manifests mean the file was edited after the first signature' : ''), REF.c2pa));
+  L.push(UTIL.sig('C2PA signature', S + ' · ' + (r.sig.alg || '?') + (signer ? ' · ' + signer : '') + (r.signer.from ? ' · cert ' + r.signer.from + ' → ' + r.signer.to : ''), S === 'invalid' ? 'proc' : 'neutral', 0, S === 'valid' ? 'Cryptographically valid for the embedded certificate' : S === 'invalid' ? 'Signature does not match the claim: manifest was altered' : 'Could not verify in this browser (' + S + ')', REF.cose));
+  L.push(UTIL.sig('C2PA content hash', H + (r.hash.alg ? ' · ' + r.hash.alg : ''), H === 'mismatch' ? 'proc' : 'neutral', 0, H === 'match' ? 'Pixels and bytes are exactly what was signed' : H === 'mismatch' ? 'File bytes changed after signing' : H === 'unchecked' ? 'Not recomputed (' + (r.hash.alg || '') + ')' : H === 'unconfirmed' ? 'BMFF hash variant not reproduced here; not treated as tampering' : 'No hash assertion', REF.c2pa));
+  if (r.actions.length) L.push(UTIL.sig('C2PA actions', r.actions.slice(0, 6).join(' | '), 'neutral', 0, 'Edit history recorded by the signing tool', REF.c2pa));
   const T = r.trust || {}, tr = T.status === 'trusted';
-  if (r.trust) L.push(sig('C2PA certificate chain', T.status + (T.anchor ? ' · ' + T.anchor : T.root ? ' · root ' + T.root : '') + (T.expired ? ' · a certificate has expired' : ''), 'neutral', 0, tr ? 'Chain verified up to an anchor on the official C2PA trust list. Revocation is not checked' : 'Signer identity is not vouched for by the C2PA trust list; the signature still proves the manifest is intact', REF.trust));
+  if (r.trust) L.push(UTIL.sig('C2PA certificate chain', T.status + (T.anchor ? ' · ' + T.anchor : T.root ? ' · root ' + T.root : '') + (T.expired ? ' · a certificate has expired' : ''), 'neutral', 0, tr ? 'Chain verified up to an anchor on the official C2PA trust list. Revocation is not checked' : 'Signer identity is not vouched for by the C2PA trust list; the signature still proves the manifest is intact', REF.trust));
   const wAI = tampered ? 15 : ok && tr && H === 'match' ? 50 : ok && tr ? 47 : ok ? 40 : 35;
-  if (r.ai) { L.push(sig('C2PA digitalSourceType', r.sourceTypes.join(', '), 'ai', wAI, 'Signed manifest declares AI-generated content' + (tampered ? ', but the manifest or file was altered' : ''), REF.iptc)); I.strong = !tampered; }
-  else if (who) { L.push(sig('C2PA AI vendor', who[0], 'ai', Math.round(wAI * .7), 'Manifest generator or signer belongs to an AI vendor', REF.c2pa)); I.strong = !tampered; }
-  else if (r.capture) L.push(sig('C2PA digitalSourceType', r.sourceTypes.join(', '), 'real', ok && tr ? -30 : ok ? -20 : -10, ok ? 'Signed manifest declares a camera capture' : 'Declares a capture, but the signature is unverified', REF.iptc));
+  if (r.ai) { L.push(UTIL.sig('C2PA digitalSourceType', r.sourceTypes.join(', '), 'ai', wAI, 'Signed manifest declares AI-generated content' + (tampered ? ', but the manifest or file was altered' : ''), REF.iptc)); I.strong = !tampered; }
+  else if (who) { L.push(UTIL.sig('C2PA AI vendor', who[0], 'ai', Math.round(wAI * .7), 'Manifest generator or signer belongs to an AI vendor', REF.c2pa)); I.strong = !tampered; }
+  else if (r.capture) L.push(UTIL.sig('C2PA digitalSourceType', r.sourceTypes.join(', '), 'real', ok && tr ? -30 : ok ? -20 : -10, ok ? 'Signed manifest declares a camera capture' : 'Declares a capture, but the signature is unverified', REF.iptc));
   I.verified = ok && !tampered; I.tampered = tampered; I.trusted = I.verified && tr;
 }
 
@@ -252,19 +249,19 @@ function pixelSignals(ctx, w, h, natW, natH) {
   }
   const L = [];
   const lowNoise = sd < 1.6, richNoise = sd > 4;
-  L.push(sig('Noise residual σ', sd.toFixed(2), lowNoise ? 'ai' : richNoise ? 'real' : 'neutral', lowNoise ? 7 : richNoise ? -8 : 0, lowNoise ? 'Too clean for a sensor at this size' : richNoise ? 'Sensor-like grain present' : 'Mid-range', REF.prnu));
-  L.push(sig('Residual kurtosis', kurt.toFixed(1), kurt < 4 ? 'ai' : kurt > 12 ? 'real' : 'neutral', kurt < 4 ? 6 : kurt > 12 ? -5 : 0, kurt < 4 ? 'Near-Gaussian, smoothed noise' : kurt > 12 ? 'Heavy-tailed, natural texture/shot noise' : 'Typical', REF.diff));
-  L.push(sig('Noise uniformity (CV)', noiseCV.toFixed(2), noiseCV > 3 ? 'ai' : noiseCV < 1.2 ? 'real' : 'neutral', noiseCV > 3 ? 6 : noiseCV < 1.2 ? -6 : 0, noiseCV > 3 ? 'Detail concentrated, smooth elsewhere' : noiseCV < 1.2 ? 'Even sensor noise across frame' : 'Mixed', REF.prnu));
-  L.push(sig('Flat-area ratio', (flat / n * 100).toFixed(0) + '%', flat / n > .7 ? 'ai' : 'neutral', flat / n > .7 ? 4 : 0, flat / n > .7 ? 'Large perfectly smooth zones' : 'Normal range for photos and graphics', REF.diff));
-  L.push(sig('Spectral peak (residual FFT)', spec[1] ? peak.toFixed(2) + ' @ f=' + (peakAt / N).toFixed(3) : 'image too small', peak > 1.35 && Math.abs(peakAt / N - .125) > .01 ? 'ai' : peak > 1.35 ? 'proc' : 'neutral', peak > 1.35 && Math.abs(peakAt / N - .125) > .01 ? 12 : 0, peak > 1.35 ? (Math.abs(peakAt / N - .125) <= .01 ? 'Peak at 1/8 = JPEG grid, not generator' : 'Periodic upsampling artefact') : 'No periodic grid', REF.spec));
-  L.push(sig('CFA / channel noise correlation', chroma.toFixed(3), chroma > .93 ? 'ai' : chroma < .8 ? 'real' : 'neutral', chroma > .93 ? 5 : chroma < .8 ? -5 : 0, chroma > .93 ? 'Channels equally noisy: no demosaicing trace' : chroma < .8 ? 'Channel-specific noise, Bayer-like' : 'Ambiguous', REF.cfa));
-  L.push(sig('8-px block periodicity', block.toFixed(2), block > 1.2 ? 'proc' : 'neutral', 0, block > 1.2 ? 'JPEG (re)compression grid present' : 'No strong grid', REF.jpeg));
-  L.push(sig('Mean saturation / clipping', (sat / n * 100).toFixed(0) + '% / ' + (clip / n * 100).toFixed(1) + '%', 'neutral', 0, 'Measured for context only: style and grading drive this more than origin', REF.diff));
-  L.push(sig('Histogram comb gaps', gaps + ' empty levels', gaps > 6 ? 'proc' : 'neutral', 0, gaps > 6 ? 'Missing tone levels: contrast/levels edit or bit-depth stretch' : 'Continuous tone distribution', REF.ela));
-  L.push(sig('Colour diversity (18-bit)', (uniq * 100).toFixed(1) + '%', 'neutral', 0, uniq < .02 ? 'Very few distinct colours: graphic, palette or heavy quantisation' : 'Measured for context', REF.diff));
-  L.push(sig('Cloned regions (copy-move)', clones + ' of ' + blocks + ' textured blocks', cloneR > .01 ? 'proc' : 'neutral', 0, cloneR > .01 ? 'Identical textured blocks far apart: cloning, tiling or repeated patterns' : 'No duplicated texture found', REF.ela));
+  L.push(UTIL.sig('Noise residual σ', sd.toFixed(2), lowNoise ? 'ai' : richNoise ? 'real' : 'neutral', lowNoise ? 7 : richNoise ? -8 : 0, lowNoise ? 'Too clean for a sensor at this size' : richNoise ? 'Sensor-like grain present' : 'Mid-range', REF.prnu));
+  L.push(UTIL.sig('Residual kurtosis', kurt.toFixed(1), kurt < 4 ? 'ai' : kurt > 12 ? 'real' : 'neutral', kurt < 4 ? 6 : kurt > 12 ? -5 : 0, kurt < 4 ? 'Near-Gaussian, smoothed noise' : kurt > 12 ? 'Heavy-tailed, natural texture/shot noise' : 'Typical', REF.diff));
+  L.push(UTIL.sig('Noise uniformity (CV)', noiseCV.toFixed(2), noiseCV > 3 ? 'ai' : noiseCV < 1.2 ? 'real' : 'neutral', noiseCV > 3 ? 6 : noiseCV < 1.2 ? -6 : 0, noiseCV > 3 ? 'Detail concentrated, smooth elsewhere' : noiseCV < 1.2 ? 'Even sensor noise across frame' : 'Mixed', REF.prnu));
+  L.push(UTIL.sig('Flat-area ratio', (flat / n * 100).toFixed(0) + '%', flat / n > .7 ? 'ai' : 'neutral', flat / n > .7 ? 4 : 0, flat / n > .7 ? 'Large perfectly smooth zones' : 'Normal range for photos and graphics', REF.diff));
+  L.push(UTIL.sig('Spectral peak (residual FFT)', spec[1] ? peak.toFixed(2) + ' @ f=' + (peakAt / N).toFixed(3) : 'image too small', peak > 1.35 && Math.abs(peakAt / N - .125) > .01 ? 'ai' : peak > 1.35 ? 'proc' : 'neutral', peak > 1.35 && Math.abs(peakAt / N - .125) > .01 ? 12 : 0, peak > 1.35 ? (Math.abs(peakAt / N - .125) <= .01 ? 'Peak at 1/8 = JPEG grid, not generator' : 'Periodic upsampling artefact') : 'No periodic grid', REF.spec));
+  L.push(UTIL.sig('CFA / channel noise correlation', chroma.toFixed(3), chroma > .93 ? 'ai' : chroma < .8 ? 'real' : 'neutral', chroma > .93 ? 5 : chroma < .8 ? -5 : 0, chroma > .93 ? 'Channels equally noisy: no demosaicing trace' : chroma < .8 ? 'Channel-specific noise, Bayer-like' : 'Ambiguous', REF.cfa));
+  L.push(UTIL.sig('8-px block periodicity', block.toFixed(2), block > 1.2 ? 'proc' : 'neutral', 0, block > 1.2 ? 'JPEG (re)compression grid present' : 'No strong grid', REF.jpeg));
+  L.push(UTIL.sig('Mean saturation / clipping', (sat / n * 100).toFixed(0) + '% / ' + (clip / n * 100).toFixed(1) + '%', 'neutral', 0, 'Measured for context only: style and grading drive this more than origin', REF.diff));
+  L.push(UTIL.sig('Histogram comb gaps', gaps + ' empty levels', gaps > 6 ? 'proc' : 'neutral', 0, gaps > 6 ? 'Missing tone levels: contrast/levels edit or bit-depth stretch' : 'Continuous tone distribution', REF.ela));
+  L.push(UTIL.sig('Colour diversity (18-bit)', (uniq * 100).toFixed(1) + '%', 'neutral', 0, uniq < .02 ? 'Very few distinct colours: graphic, palette or heavy quantisation' : 'Measured for context', REF.diff));
+  L.push(UTIL.sig('Cloned regions (copy-move)', clones + ' of ' + blocks + ' textured blocks', cloneR > .01 ? 'proc' : 'neutral', 0, cloneR > .01 ? 'Identical textured blocks far apart: cloning, tiling or repeated patterns' : 'No duplicated texture found', REF.ela));
   const m64 = natW % 64 === 0 && natH % 64 === 0, std = [[1024, 1024], [1024, 1536], [1536, 1024], [1792, 1024], [1024, 1792], [832, 1216], [1216, 832], [896, 1152], [1152, 896], [768, 1344], [1344, 768], [512, 512], [2048, 2048], [1456, 816], [816, 1456]].some(([a, b]) => a === natW && b === natH);
-  L.push(sig('Dimensions', natW + '×' + natH, std ? 'ai' : 'neutral', std ? 6 : 0, std ? 'Exact native generator size' : m64 ? 'Multiple of 64 (latent grid)' : 'Not a typical generator size', REF.size));
+  L.push(UTIL.sig('Dimensions', natW + '×' + natH, std ? 'ai' : 'neutral', std ? 6 : 0, std ? 'Exact native generator size' : m64 ? 'Multiple of 64 (latent grid)' : 'Not a typical generator size', REF.size));
   return { L, res, sd, s2d: s2d[0] || s2d[1] ? s2d : null, clones };
 }
 
@@ -282,10 +279,10 @@ function maps(img, ctx, w, h, res, sd) {
     const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h; tmp.getContext('2d').drawImage(img, 0, 0, w, h);
     tmp.toBlob(b => { const im = new Image(); im.onload = () => {
       ec.drawImage(im, 0, 0); const a = ctx.getImageData(0, 0, w, h), c = ec.getImageData(0, 0, w, h);
-      for (let i = 0; i < a.data.length; i += 4) for (let k = 0; k < 3; k++) c.data[i + k] = clamp(Math.abs(a.data[i + k] - c.data[i + k]) * 14, 0, 255);
+      for (let i = 0; i < a.data.length; i += 4) for (let k = 0; k < 3; k++) c.data[i + k] = UTIL.clamp(Math.abs(a.data[i + k] - c.data[i + k]) * 14, 0, 255);
       ec.putImageData(c, 0, 0);
       const nm = document.createElement('canvas'); nm.width = w; nm.height = h; const nc = nm.getContext('2d'), nd = nc.createImageData(w, h);
-      for (let i = 0; i < res.length; i++) { const v = clamp(Math.abs(res[i]) / (sd * 3 + 1e-9) * 255, 0, 255); nd.data[i * 4] = nd.data[i * 4 + 1] = nd.data[i * 4 + 2] = v; nd.data[i * 4 + 3] = 255; }
+      for (let i = 0; i < res.length; i++) { const v = UTIL.clamp(Math.abs(res[i]) / (sd * 3 + 1e-9) * 255, 0, 255); nd.data[i * 4] = nd.data[i * 4 + 1] = nd.data[i * 4 + 2] = v; nd.data[i * 4 + 3] = 255; }
       nc.putImageData(nd, 0, 0); r([ela.toDataURL('image/jpeg', .8), nm.toDataURL('image/jpeg', .8)]);
     }; im.src = URL.createObjectURL(b); }, 'image/jpeg', 0.9);
   });
@@ -298,20 +295,20 @@ function combine(list, info, cap) {
   let rel = 35 + Math.min(30, Math.abs(ai - real) * 8);
   if (info.strong) rel = info.trusted ? 95 : info.verified ? 88 : 80;
   else { if (info.screenshot) rel -= 25; if (info.quality && info.quality < 85) rel -= 12; if (info.double) rel -= 10; if (info.gridLost) rel -= 6; if (info.tampered) rel -= 10; if (cap) rel = Math.min(rel, cap); }
-  s = clamp(Math.round(s), info.strong ? 2 : 15, info.strong ? 98 : 85);
+  s = UTIL.clamp(Math.round(s), info.strong ? 2 : 15, info.strong ? 98 : 85);
   const label = info.strong && s > 70 ? 'Declared / tagged AI' : s >= 68 ? 'Leans AI' : s <= 32 ? 'Leans camera / natural' : 'Inconclusive';
-  return { score: s, rel: clamp(Math.round(rel), 10, 95), label, verified: !!info.verified, trusted: !!info.trusted };
+  return { score: s, rel: UTIL.clamp(Math.round(rel), 10, 95), label, verified: !!info.verified, trusted: !!info.trusted };
 }
 
 const DIRL = { ai: '→ AI', real: '→ Camera', proc: '→ Processing', neutral: '· neutral' };
 const VCLS = l => l.startsWith('Declared') ? 'tagged' : l === 'Leans AI' ? 'ai' : l.startsWith('Leans camera') ? 'real' : l === 'Error' ? 'error' : 'mixed';
 const VNAME = { all: 'All', tagged: 'Tagged AI', ai: 'Leans AI', mixed: 'Inconclusive', real: 'Leans camera', error: 'Errors' };
 const entries = [], view = { v: 'all', t: 'all', sort: 'order', q: '' };
-const refCell = x => esc(x.why) + (x.ref && x.ref[1] ? '<small><a href="' + x.ref[1] + '" target="_blank" rel="noopener">' + esc(x.ref[0]) + '</a></small>' : '<small>' + esc(x.ref ? x.ref[0] : '') + '</small>');
+const refCell = x => UTIL.esc(x.why) + (x.ref && x.ref[1] ? '<small><a href="' + x.ref[1] + '" target="_blank" rel="noopener">' + UTIL.esc(x.ref[0]) + '</a></small>' : '<small>' + UTIL.esc(x.ref ? x.ref[0] : '') + '</small>');
 
-function checksTable(list) {
-  const groups = [['Provenance & metadata', list.filter(x => !x.px && !x.jpg)], ['Compression forensics', list.filter(x => x.jpg)], ['Pixel / signal analysis', list.filter(x => x.px && !x.jpg)]];
-  return '<div class="tablewrap"><table><thead><tr><th>Check</th><th>Value</th><th>Points to</th><th>Weight</th><th>Basis / reference</th></tr></thead><tbody>' + groups.filter(g => g[1].length).map(([t, a]) => '<tr class="grp"><td colspan="5">' + t + '</td></tr>' + a.map(x => '<tr><td>' + esc(x.name) + '</td><td>' + esc(x.value) + '</td><td class="to to-' + x.dir + '">' + DIRL[x.dir] + '</td><td>' + (x.w > 0 ? '+' : '') + x.w + '</td><td>' + refCell(x) + '</td></tr>').join('')).join('') + '</tbody></table></div>';
+function checksTable(list, { group = 'Provenance & metadata', realLabel = DIRL.real } = {}) {
+  const groups = [[group, list.filter(x => !x.px && !x.jpg)], ['Compression forensics', list.filter(x => x.jpg)], ['Pixel / signal analysis', list.filter(x => x.px && !x.jpg)]];
+  return '<div class="tablewrap"><table><thead><tr><th>Check</th><th>Value</th><th>Points to</th><th>Weight</th><th>Basis / reference</th></tr></thead><tbody>' + groups.filter(g => g[1].length).map(([t, a]) => '<tr class="grp"><td colspan="5">' + UTIL.esc(t) + '</td></tr>' + a.map(x => '<tr><td>' + UTIL.esc(x.name) + '</td><td>' + UTIL.esc(x.value) + '</td><td class="to to-' + x.dir + '">' + (x.dir === 'real' ? realLabel : DIRL[x.dir]) + '</td><td>' + (x.w > 0 ? '+' : '') + x.w + '</td><td>' + refCell(x) + '</td></tr>').join('')).join('') + '</tbody></table></div>';
 }
 
 function render(file, kind, list, r, extra, thumb) {
@@ -319,7 +316,7 @@ function render(file, kind, list, r, extra, thumb) {
   const v = VCLS(r.label), type = kind.split(' ')[0];
   const el = document.createElement('details'); el.className = 'fcard v-' + v;
   const th = thumb ? '<img class="thumb" src="' + thumb + '" alt="">' : '<span class="thumb glyph">' + (type === 'Audio' ? '♪' : type === 'Video' ? '▶' : '!') + '</span>';
-  el.innerHTML = '<summary>' + th + '<span class="fmeta"><b>' + esc(file.name) + '</b><small>' + esc(kind) + ' · ' + (file.size / 1048576).toFixed(2) + ' MB' + (top[0] ? ' · ' + esc(top[0].name) + ' ' + DIRL[top[0].dir] : '') + '</small></span><span class="vpill">' + esc(r.label) + '</span><span class="fscore"><b>' + r.score + '%</b><small>reliability ' + r.rel + '%</small><span class="mini"><i style="width:' + r.score + '%"></i></span></span></summary><div class="fbody"><p class="honest">' + (r.label === 'Error' ? 'File could not be decoded.' : /Declared/.test(r.label) ? 'Based on an embedded provenance tag' + (r.trusted ? ' with a valid signature from a C2PA-trusted signer' : r.verified ? ' with a valid signature (signer not on the C2PA trust list)' : '') + '. Tags can be stripped, but they are not guesses.' : 'Statistical estimate from measured signals, not proof. Without a provenance tag the score stays between 15 and 85.') + '</p>' + (list.length ? '<h4>Main drivers</h4><ul class="drivers">' + (top.map(x => '<li><b>' + DIRL[x.dir] + '</b> ' + esc(x.name) + ': ' + esc(x.why) + '</li>').join('') || '<li>No decisive signal</li>') + '</ul>' : '') + (extra || '') + (list.length ? '<details class="checks" open><summary>All ' + list.length + ' checks</summary>' + checksTable(list) + '</details>' : '') + '</div>';
+  el.innerHTML = '<summary>' + th + '<span class="fmeta"><b>' + UTIL.esc(file.name) + '</b><small>' + UTIL.esc(kind) + ' · ' + (file.size / 1048576).toFixed(2) + ' MB' + (top[0] ? ' · ' + UTIL.esc(top[0].name) + ' ' + DIRL[top[0].dir] : '') + '</small></span><span class="vpill">' + UTIL.esc(r.label) + '</span><span class="fscore"><b>' + r.score + '%</b><small>reliability ' + r.rel + '%</small><span class="mini"><i style="width:' + r.score + '%"></i></span></span></summary><div class="fbody"><p class="honest">' + (r.label === 'Error' ? 'File could not be decoded.' : /Declared/.test(r.label) ? 'Based on an embedded provenance tag' + (r.trusted ? ' with a valid signature from a C2PA-trusted signer' : r.verified ? ' with a valid signature (signer not on the C2PA trust list)' : '') + '. Tags can be stripped, but they are not guesses.' : 'Statistical estimate from measured signals, not proof. Without a provenance tag the score stays between 15 and 85.') + '</p>' + (list.length ? '<h4>Main drivers</h4><ul class="drivers">' + (top.map(x => '<li><b>' + DIRL[x.dir] + '</b> ' + UTIL.esc(x.name) + ': ' + UTIL.esc(x.why) + '</li>').join('') || '<li>No decisive signal</li>') + '</ul>' : '') + (extra || '') + (list.length ? '<details class="checks" open><summary>All ' + list.length + ' checks</summary>' + checksTable(list) + '</details>' : '') + '</div>';
   entries.push({ name: file.name, type, v, r, el, idx: entries.length, top: top[0] ? top[0].name + ' ' + DIRL[top[0].dir] : '' });
   $('#media-out').append(el); drawDash();
   return el;
@@ -404,12 +401,12 @@ async function doVideo(f) {
   const lmM = lum.reduce((a, b) => a + b) / N, flick = Math.sqrt(lum.reduce((a, b) => a + (b - lmM) ** 2, 0) / N);
   const px = fr[0].L.map((x, j) => { const ws = fr.map(f => f.L[j].w), aw = Math.round(ws.reduce((a, b) => a + b) / N); return { ...x, value: fr.map(f => f.L[j].value).slice(0, 3).join(' | ') + '…', w: aw, dir: aw > 0 ? 'ai' : aw < 0 ? 'real' : x.dir, px: true }; }).filter(x => x.name !== 'Dimensions' && x.name !== 'Mean saturation / clipping');
   const sds = fr.map(f => f.sd), m = sds.reduce((a, b) => a + b) / N, cv = Math.sqrt(sds.reduce((a, b) => a + (b - m) ** 2, 0) / N) / (m + 1e-9);
-  px.push({ ...sig('Noise stability across frames', cv.toFixed(3), cv < .04 ? 'ai' : 'neutral', cv < .04 ? 4 : 0, cv < .04 ? 'Noise level nearly frozen between shots' : 'Varies like real footage', REF.prnu), px: true });
+  px.push({ ...UTIL.sig('Noise stability across frames', cv.toFixed(3), cv < .04 ? 'ai' : 'neutral', cv < .04 ? 4 : 0, cv < .04 ? 'Noise level nearly frozen between shots' : 'Varies like real footage', REF.prnu), px: true });
   const dm = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-  px.push({ ...sig('Fixed-pattern noise carry-over', fp.toFixed(3), fp > .06 ? 'real' : 'neutral', fp > .06 ? -5 : 0, fp > .06 ? 'The same noise pattern repeats across distant frames: consistent with a physical sensor' : 'No stable sensor pattern found. Generators show this, but so do heavy compression and moving cameras, so it is not scored', REF.temporal), px: true });
-  if (sh !== null) px.push({ ...sig('Texture shimmer (static areas, 1/30 s apart)', sh.toFixed(2), 'neutral', 0, sh > 1.2 ? 'Fine texture changes a lot between adjacent frames in still areas: re-synthesis or strong denoising' : 'Fine texture is stable where nothing moves', REF.temporal), px: true });
-  px.push({ ...sig('Brightness flicker across samples', flick.toFixed(1) + ' levels', 'neutral', 0, 'Context: cuts and lighting changes dominate this value', REF.temporal), px: true });
-  px.push({ ...sig('Duration / motion', v.duration.toFixed(1) + 's · Δ' + dm.toFixed(1), 'neutral', 0, 'Measured for context only: clip length is not evidence of origin', REF.diff), px: true });
+  px.push({ ...UTIL.sig('Fixed-pattern noise carry-over', fp.toFixed(3), fp > .06 ? 'real' : 'neutral', fp > .06 ? -5 : 0, fp > .06 ? 'The same noise pattern repeats across distant frames: consistent with a physical sensor' : 'No stable sensor pattern found. Generators show this, but so do heavy compression and moving cameras, so it is not scored', REF.temporal), px: true });
+  if (sh !== null) px.push({ ...UTIL.sig('Texture shimmer (static areas, 1/30 s apart)', sh.toFixed(2), 'neutral', 0, sh > 1.2 ? 'Fine texture changes a lot between adjacent frames in still areas: re-synthesis or strong denoising' : 'Fine texture is stable where nothing moves', REF.temporal), px: true });
+  px.push({ ...UTIL.sig('Brightness flicker across samples', flick.toFixed(1) + ' levels', 'neutral', 0, 'Context: cuts and lighting changes dominate this value', REF.temporal), px: true });
+  px.push({ ...UTIL.sig('Duration / motion', v.duration.toFixed(1) + 's · Δ' + dm.toFixed(1), 'neutral', 0, 'Measured for context only: clip length is not evidence of origin', REF.diff), px: true });
   const list = [...meta.list, ...px], r = combine(list, meta.info, 45);
   render(f, 'Video · ' + v.videoWidth + '×' + v.videoHeight, list, r, '<div class="maps"><figure><video src="' + v.src + '" controls playsinline muted></video><figcaption>Preview</figcaption></figure></div>', c.toDataURL('image/jpeg', .7));
 }
@@ -436,14 +433,14 @@ async function doAudio(f) {
   const peak = Math.max(...rms), crest = 20 * Math.log10(peak / (rm + 1e-9));
   let corr = null; if (y) { let a = 0, b = 0, c = 0; for (let i = 0; i < x.length; i += 50) { a += x[i] * y[i]; b += x[i] ** 2; c += y[i] ** 2; } corr = a / Math.sqrt(b * c + 1e-12); }
   const L = [];
-  L.push(sig('Bandwidth cutoff', Math.round(cut) + ' Hz', cut < 16500 ? 'proc' : 'neutral', 0, cut < 16500 ? 'Lossy low-pass: evidence weakened' : 'Full-band', REF.lossy));
+  L.push(UTIL.sig('Bandwidth cutoff', Math.round(cut) + ' Hz', cut < 16500 ? 'proc' : 'neutral', 0, cut < 16500 ? 'Lossy low-pass: evidence weakened' : 'Full-band', REF.lossy));
   const shelf = cut > 15000 && cut < 16500 && /MP3|Other|MP4/.test(meta.info.format) === false;
-  if (shelf) L.push(sig('16 kHz shelf on lossless file', 'yes', 'ai', 8, 'Lossless container with lossy-like band limit: often generator output', REF.audio));
-  L.push(sig('Spectral flatness', fl.toFixed(3), fl > .35 ? 'ai' : fl < .08 ? 'real' : 'neutral', fl > .35 ? 5 : fl < .08 ? -3 : 0, fl > .35 ? 'Smeared, noise-like spectrum (vocoder trait)' : 'Tonal structure', REF.audio));
-  L.push(sig('Loudness variation', dyn.toFixed(2), dyn < .22 ? 'ai' : dyn > .8 ? 'real' : 'neutral', dyn < .22 ? 6 : dyn > .8 ? -6 : 0, dyn < .22 ? 'Unusually constant energy' : dyn > .8 ? 'Natural dynamics' : 'Typical mastered music', REF.audio));
-  L.push(sig('Crest factor', crest.toFixed(1) + ' dB', 'neutral', 0, 'Context only: loudness-war masters also score low', REF.audio));
-  if (corr !== null) L.push(sig('Stereo L/R correlation', corr.toFixed(3), corr > .985 ? 'ai' : 'neutral', corr > .985 ? 4 : 0, corr > .985 ? 'Near-mono stereo image' : 'Real stereo spread', REF.audio));
-  L.push(sig('Format', meta.info.format + ' · ' + sr + ' Hz · ' + ab.numberOfChannels + 'ch · ' + ab.duration.toFixed(1) + 's', 'neutral', 0, 'Measured for context only', REF.audio));
+  if (shelf) L.push(UTIL.sig('16 kHz shelf on lossless file', 'yes', 'ai', 8, 'Lossless container with lossy-like band limit: often generator output', REF.audio));
+  L.push(UTIL.sig('Spectral flatness', fl.toFixed(3), fl > .35 ? 'ai' : fl < .08 ? 'real' : 'neutral', fl > .35 ? 5 : fl < .08 ? -3 : 0, fl > .35 ? 'Smeared, noise-like spectrum (vocoder trait)' : 'Tonal structure', REF.audio));
+  L.push(UTIL.sig('Loudness variation', dyn.toFixed(2), dyn < .22 ? 'ai' : dyn > .8 ? 'real' : 'neutral', dyn < .22 ? 6 : dyn > .8 ? -6 : 0, dyn < .22 ? 'Unusually constant energy' : dyn > .8 ? 'Natural dynamics' : 'Typical mastered music', REF.audio));
+  L.push(UTIL.sig('Crest factor', crest.toFixed(1) + ' dB', 'neutral', 0, 'Context only: loudness-war masters also score low', REF.audio));
+  if (corr !== null) L.push(UTIL.sig('Stereo L/R correlation', corr.toFixed(3), corr > .985 ? 'ai' : 'neutral', corr > .985 ? 4 : 0, corr > .985 ? 'Near-mono stereo image' : 'Real stereo spread', REF.audio));
+  L.push(UTIL.sig('Format', meta.info.format + ' · ' + sr + ' Hz · ' + ab.numberOfChannels + 'ch · ' + ab.duration.toFixed(1) + 's', 'neutral', 0, 'Measured for context only', REF.audio));
   L.forEach(v => v.px = true);
   const list = [...meta.list, ...L], r = combine(list, meta.info, 60);
   render(f, 'Audio · ' + meta.info.format, list, r, '<audio controls src="' + URL.createObjectURL(f) + '" style="width:100%;margin-top:14px"></audio>');
@@ -460,7 +457,7 @@ async function handleFiles(files) {
       else if (t.startsWith('audio/') || /mp3|wav|flac|ogg|m4a|aac|opus/.test(ext)) await doAudio(f);
       else if (t.startsWith('text/') || /txt|csv|tsv|log|md|json|html?/.test(ext)) { $('#text-input').value += (await f.text()) + '\n'; extractText(); $('#media-progress').textContent = f.name + ' sent to Text · Numbers'; }
       else throw new Error('unsupported type');
-    } catch (e) { render(f, 'Unreadable · ' + (f.type || 'unknown'), [], { score: 0, rel: 0, label: 'Error' }, '<p>Could not decode in this browser (' + esc(e.message || 'format') + ').</p>'); }
+    } catch (e) { render(f, 'Unreadable · ' + (f.type || 'unknown'), [], { score: 0, rel: 0, label: 'Error' }, '<p>Could not decode in this browser (' + UTIL.esc(e.message || 'format') + ').</p>'); }
   }
   $('#media-progress').textContent = arr.length + ' file(s) done';
 }

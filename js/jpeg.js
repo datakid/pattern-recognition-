@@ -2,7 +2,7 @@ const JPG = (() => {
   const ZZ = [0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63];
   const STD_L = [16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13, 16, 24, 40, 57, 69, 56, 14, 17, 22, 29, 51, 87, 80, 62, 18, 22, 37, 56, 68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113, 92, 49, 64, 78, 87, 103, 121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99];
   const STD_C = [17, 18, 24, 47, 99, 99, 99, 99, 18, 21, 26, 66, 99, 99, 99, 99, 24, 26, 56, 99, 99, 99, 99, 99, 47, 66, 99, 99, 99, 99, 99, 99, ...new Array(32).fill(99)];
-  const scaled = (base, q) => { const s = q < 50 ? 5000 / q : 200 - 2 * q; return base.map(b => clamp(Math.floor((b * s + 50) / 100), 1, 255)); };
+  const scaled = (base, q) => { const s = q < 50 ? 5000 / q : 200 - 2 * q; return base.map(b => UTIL.clamp(Math.floor((b * s + 50) / 100), 1, 255)); };
 
   function header(u) {
     const r = { q: {}, sof: null, progressive: false, restart: 0, huffman: 0, app: [], comments: [], thumb: false };
@@ -126,7 +126,7 @@ const JPG = (() => {
     if (mp) {
       const vals = [...mp.m].sort((a, b) => a - b), lo = vals[vals.length * .05 | 0], hi = vals[vals.length * .95 | 0] + 1e-9;
       const c = document.createElement('canvas'); c.width = mp.bw; c.height = mp.bh; const x = c.getContext('2d'), id = x.createImageData(mp.bw, mp.bh);
-      for (let i = 0; i < mp.m.length; i++) { const v = clamp((mp.m[i] - lo) / (hi - lo), 0, 1) * 255; id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255; }
+      for (let i = 0; i < mp.m.length; i++) { const v = UTIL.clamp((mp.m[i] - lo) / (hi - lo), 0, 1) * 255; id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255; }
       x.putImageData(id, 0, 0); mapURL = c.toDataURL('image/png');
     }
     return { curve, mins, prior, mapQ: mq, mapURL };
@@ -136,30 +136,30 @@ const JPG = (() => {
     const h = analyzeHeader(u); if (!h) return { L: [], maps: '' };
     const L = [];
     const lq = h.Lq, curQ = lq.q;
-    L.push(sig('JPEG quantization table', (h.exact ? 'standard IJG table, quality ' + curQ : 'custom table, closest IJG quality ≈' + curQ + ' (Δ' + lq.err + ')') + ' · ' + Object.keys(h.q).length + ' tables',
+    L.push(UTIL.sig('JPEG quantization table', (h.exact ? 'standard IJG table, quality ' + curQ : 'custom table, closest IJG quality ≈' + curQ + ' (Δ' + lq.err + ')') + ' · ' + Object.keys(h.q).length + ' tables',
       h.exact && info.camera ? 'proc' : !h.exact && info.camera ? 'real' : 'neutral', !h.exact && info.camera ? -4 : 0,
       h.exact ? (info.camera ? 'EXIF names a camera but the tables are the generic libjpeg ones: the file was re-saved by software after capture' : 'Generic libjpeg tables: last written by software (browser, editor, PIL, many AI pipelines)') : (info.camera ? 'Non-standard tables match what camera firmware writes, and EXIF names a camera: consistent' : 'Non-standard tables: camera firmware, Photoshop or another custom encoder'), REF.qt));
-    L.push(sig('JPEG structure', (h.progressive ? 'progressive' : 'baseline') + ' · ' + h.sub + (h.restart ? ' · restart ' + h.restart : '') + (h.thumb ? ' · EXIF thumbnail' : '') + ' · ' + h.app.join(','), 'neutral', 0, h.thumb ? 'Embedded preview thumbnail exists: typical of cameras and phones' : 'Encoder settings, context only', REF.qt));
-    if (h.comments.length) L.push(sig('JPEG comment', h.comments[0].slice(0, 80), 'neutral', 0, 'Encoder or editor comment', REF.qt));
+    L.push(UTIL.sig('JPEG structure', (h.progressive ? 'progressive' : 'baseline') + ' · ' + h.sub + (h.restart ? ' · restart ' + h.restart : '') + (h.thumb ? ' · EXIF thumbnail' : '') + ' · ' + h.app.join(','), 'neutral', 0, h.thumb ? 'Embedded preview thumbnail exists: typical of cameras and phones' : 'Encoder settings, context only', REF.qt));
+    if (h.comments.length) L.push(UTIL.sig('JPEG comment', h.comments[0].slice(0, 80), 'neutral', 0, 'Encoder or editor comment', REF.qt));
     info.quality = curQ; info.sub = h.sub;
     const crop = lumaCrop(img, 1024), q = h.table;
     const g = gridFit(crop.Y, crop.W, crop.H, q);
     if (g) {
       if (!g.aligned && g.s0 - g.fit <= .05) { g.aligned = true; g.ox = g.oy = 0; g.fit = g.s0; }
       const sure = g.contrast > .25;
-      L.push(sig('8×8 grid alignment', sure ? 'offset (' + g.ox + ',' + g.oy + ') · fit ' + g.fit.toFixed(3) : 'grid not recoverable (fit ' + g.fit.toFixed(3) + ')', sure && !g.aligned ? 'proc' : 'neutral', 0,
+      L.push(UTIL.sig('8×8 grid alignment', sure ? 'offset (' + g.ox + ',' + g.oy + ') · fit ' + g.fit.toFixed(3) : 'grid not recoverable (fit ' + g.fit.toFixed(3) + ')', sure && !g.aligned ? 'proc' : 'neutral', 0,
         !sure ? 'Coefficients do not lock to the table: resized, filtered or re-encoded after the last JPEG step' : g.aligned ? 'DCT coefficients line up with the file\'s own grid: the last JPEG save was of this exact frame' : 'Grid is shifted: the image was cropped or shifted after an earlier JPEG compression', REF.align));
       info.gridLost = !sure;
     }
     const dq = doubleQuant(crop.Y, crop.W, crop.H, q);
     if (dq) {
       const yes = dq.score > .2;
-      L.push(sig('Double quantization (DCT histograms)', 'periodicity ' + dq.score.toFixed(2) + ' · ' + dq.hits + '/' + dq.n + ' frequencies', yes ? 'proc' : 'neutral', 0, yes ? 'Periodic gaps in coefficient histograms: compressed at least twice with different qualities' : 'Smooth histograms: consistent with a single compression', REF.dq));
+      L.push(UTIL.sig('Double quantization (DCT histograms)', 'periodicity ' + dq.score.toFixed(2) + ' · ' + dq.hits + '/' + dq.n + ' frequencies', yes ? 'proc' : 'neutral', 0, yes ? 'Periodic gaps in coefficient histograms: compressed at least twice with different qualities' : 'Smooth histograms: consistent with a single compression', REF.dq));
       info.double = yes;
     }
     const gh = await ghost(crop, curQ);
     if (gh.curve.length) {
-      L.push(sig('JPEG ghost', gh.prior.length ? 'earlier compression near q≈' + gh.prior.join(', ') : 'no earlier quality found', gh.prior.length ? 'proc' : 'neutral', 0, gh.prior.length ? 'Re-saving at that quality barely changes the image: it was already compressed there before' : 'No sign of an earlier lower-quality save', REF.jpeg));
+      L.push(UTIL.sig('JPEG ghost', gh.prior.length ? 'earlier compression near q≈' + gh.prior.join(', ') : 'no earlier quality found', gh.prior.length ? 'proc' : 'neutral', 0, gh.prior.length ? 'Re-saving at that quality barely changes the image: it was already compressed there before' : 'No sign of an earlier lower-quality save', REF.jpeg));
       if (gh.prior.length) info.double = true;
     }
     const maps = gh.mapURL ? '<figure><img src="' + gh.mapURL + '" alt="JPEG ghost map" style="image-rendering:pixelated"><figcaption>JPEG ghost at q' + gh.mapQ + ': dark = already compressed at this quality. A patch that differs from its surroundings may have been pasted in.</figcaption></figure>' : '';
