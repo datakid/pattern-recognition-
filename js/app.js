@@ -94,6 +94,8 @@ const REF_GROUPS = [
     [['ISO 4217 currency codes', 'https://www.iso.org/iso-4217-currency-codes.html'], 'Currency detection', 'Symbol → code mapping']
   ]],
   ['Number patterns', [
+    [['Massey 1969, Shift-register synthesis and BCH decoding', 'https://doi.org/10.1109/TIT.1969.1054260'], 'Linear recurrences', 'Finds the shortest recurrence that generates a list, so tribonacci or Padovan need no template'],
+    [['Sloane, The On-Line Encyclopedia of Integer Sequences', 'https://oeis.org'], 'Known sequences', 'Definitions of the built-in library (primes, factorials, Catalan, Bell, partitions); nothing is looked up online'],
     [['Beber & Scacco 2012, What the numbers say: a digit-based test for election fraud', 'https://doi.org/10.1093/pan/mps003'], 'Last-digit and rounding checks', 'People inventing numbers produce uneven last digits'],
     [['Nigrini 2012, Benford\'s Law: Applications for Forensic Accounting, Auditing, and Fraud Detection', 'https://doi.org/10.1002/9781119203094'], 'Benford first-digit test', 'p-value from χ²; MAD 0.006 marks a negligible deviation'],
     [['Wilson & Hilferty 1931, The distribution of chi-square', 'https://doi.org/10.1073/pnas.17.12.684'], 'Digit and Benford χ² p-values', 'Accurate on-device p-value without tables'],

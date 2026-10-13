@@ -1,5 +1,5 @@
 const NUMS = (() => {
-  const MIN_EQ_ROWS = 4, MIN_SEQ = 5, MIN_SUPPORT = .6, MAX_LOG10P = -3, MAX_COLS = 12, MAX_DATE_COLS = 6, MAX_ROWS = 1000, PAIRS = 4000, SHUFFLES = 200, PERM_CAP = 300, SEED = 0x5eed, SHOW_EXC = 5, MAX_EXC = 1000, LINE_CAP = 200000, SHOW_VALUES = 40, SAFE_INT = 2 ** 53;
+  const MIN_EQ_ROWS = 4, MIN_SEQ = 5, MIN_SUPPORT = .6, MAX_LOG10P = -3, MAX_COLS = 12, MAX_DATE_COLS = 6, MAX_ROWS = 1000, PAIRS = 4000, SHUFFLES = 200, PERM_CAP = 300, SEED = 0x5eed, SHOW_EXC = 5, MAX_EXC = 1000, LINE_CAP = 200000, SHOW_VALUES = 40, SAFE_INT = 2 ** 53, EXACT_CAP = 400;
   const SKIP_TYPES = new Set(['Date', 'Time', 'Phone', 'IP', 'ID', 'Card number', 'Version', 'UUID', 'IBAN', 'Coordinates', 'Colour', 'Email', 'URL']);
   const TOTAL = /^(?:grand\s+|sub-?)?totals?\b|^sum\b/i;
   const DECLARED = /^(?:grand\s+|sub-?)?total\b|^sum\b|\bamount due\b|\bbalance due\b/i;
@@ -426,6 +426,46 @@ const NUMS = (() => {
 
   function pickBest(list) { return list.slice().sort((a, b) => a.log10p - b.log10p || a.params - b.params || a.rank - b.rank)[0]; }
 
+  function shuffleKnown(a) {
+    if (!a.includes(null)) return shuffle(a);
+    const pos = [], vals = [];
+    a.forEach((v, i) => { if (v !== null) { pos.push(i); vals.push(v); } });
+    const sh = shuffle(vals), out = a.slice();
+    pos.forEach((p, k) => { out[p] = sh[k]; });
+    return out;
+  }
+  function signedQ(found, expected, d) {
+    const diff = SEQ.Q(found * expected.d - expected.n, expected.d), neg = diff.n < 0n;
+    return (neg ? '−' : '+') + SEQ.show(SEQ.Q(neg ? -diff.n : diff.n, diff.d), d);
+  }
+  function exactItem(raw, v, d) {
+    const s = String(raw ?? '').trim();
+    if (/^[-−+]?\d+(?:\.\d+)?$/.test(s)) return s;
+    return v !== null && Math.abs(v) < 1e15 ? v.toFixed(d) : null;
+  }
+  function scoreRule(rule, x, d, col, rowsIdx, label) {
+    const trials = rule.trials(x), k = rule.hitsOn(x);
+    if (trials < 1 || k < rule.params + 3 || k / trials < MIN_SUPPORT) return null;
+    const cap = x.slice(0, PERM_CAP);
+    let sum = 0, tp = 0;
+    for (let i = 0; i < SHUFFLES; i++) { const sh = shuffleKnown(cap); sum += rule.hitsOn(sh); tp += rule.trials(sh); }
+    const p0 = (sum + 1) / (tp + 2), all = rule.exceptions(x), full = k === trials, nx = full ? rule.next(x, 1)[0] : null;
+    return {
+      kind: 'seq', seqKind: rule.kind, name: col.name, desc: rule.desc(d), k, n: trials, params: rule.params, rank: rule.rank,
+      log10p: log10Tail(trials - rule.params, k - rule.params, p0),
+      exc: all.slice(0, MAX_EXC).map(e => ({ row: rowsIdx[e.i], label: label ? label(rowsIdx[e.i]) : '', expected: e.expected, found: e.found, diff: signedQ(e.found, e.expected, d) })),
+      excN: all.length, d, fmt: v => SEQ.show(v, d), unit: '', next: nx || null, gaps: [],
+      filled: full ? rule.filled(x).map(f => ({ i: f.i, v: f.v })) : [], col: col.j, exact: true
+    };
+  }
+  const nextKey = c => c.next === null || c.next === undefined ? '' : c.fmt(c.next);
+  function finalize(list) {
+    if (!list.length) return null;
+    const best = pickBest(list);
+    best.rivals = list.filter(c => c !== best && c.desc !== best.desc && nextKey(c) !== nextKey(best)).sort((a, b) => a.log10p - b.log10p).slice(0, 2);
+    return best;
+  }
+
   function analyze(a) {
     rand = rng(SEED);
     const tables = a.tables.map(t => {
@@ -435,21 +475,38 @@ const NUMS = (() => {
         return { eqs: [], seqs: [], totals: [], cols: V.cols.map(c => colLine(c.name, c.nums)), digits: [], formula: {}, bad: {}, overflow: 0, m: 0, V, kvOnly: true };
       }
       if (!V.cols.length && !V.dateCols.length) return null;
-      const ctx = { tested: 0 }, bad = {}, formula = {};
+      const ctx = { tested: 0, exactTested: 0 }, bad = {}, formula = {};
       const eqAll = candidates(V, ctx);
       const seqAll = [];
+      const exactCols = [];
       V.cols.concat(V.dateCols).filter(c => c.distinct >= 2).forEach(c => {
         const idx = V.dataRows.filter(r => c.vals[r] !== null);
         seqAll.push(...seqChecks(idx.map(r => c.vals[r]), idx, c, ctx, V.label));
+        if (c.date || idx.length < MIN_SEQ || idx.length > EXACT_CAP) return;
+        const items = idx.map(r => exactItem(V.rows[r][c.j], c.vals[r], c.d));
+        const P = items.every(v => v !== null) ? SEQ.parse(items) : null;
+        if (!P) return;
+        const R = SEQ.rules(P.x, { big: P.big });
+        ctx.exactTested += R.tested;
+        R.rules.forEach(rule => { const sc = scoreRule(rule, P.x, P.d, c, idx, V.label); if (sc) seqAll.push(sc); });
+        exactCols.push({ c, idx, P });
       });
-      const m = ctx.tested, adj = c => Math.min(0, c.log10p + Math.log10(Math.max(1, m)));
-      const keep = c => { c.adj = adj(c); return c.adj <= MAX_LOG10P; };
+      const m = ctx.tested, mEx = m + ctx.exactTested;
+      const keep = c => { const mm = c.exact ? mEx : m; c.adj = Math.min(0, c.log10p + Math.log10(Math.max(1, mm))); if (c.exact) c.mUsed = mm; return c.adj <= MAX_LOG10P; };
       const byTarget = new Map();
       eqAll.filter(keep).forEach(c => byTarget.set(c.target, [...(byTarget.get(c.target) || []), c]));
       const eqs = [...byTarget.values()].map(pickBest).sort((x, y) => x.target - y.target);
       const byCol = new Map();
       seqAll.filter(keep).forEach(c => byCol.set(c.col, [...(byCol.get(c.col) || []), c]));
-      const seqs = [...byCol.values()].map(pickBest).sort((x, y) => x.col - y.col);
+      const libs = exactCols.filter(e => !(byCol.get(e.c.j) || []).length).map(e => ({ e, L: SEQ.library(e.P.x) })).filter(o => o.L.tested > 0);
+      const mLib = mEx + libs.reduce((sum, o) => sum + o.L.tested, 0);
+      libs.forEach(({ e, L }) => L.rules.forEach(rule => {
+        const sc = scoreRule(rule, e.P.x, e.P.d, e.c, e.idx, V.label);
+        if (!sc) return;
+        sc.adj = Math.min(0, sc.log10p + Math.log10(mLib));
+        if (sc.adj <= MAX_LOG10P) { sc.mUsed = mLib; byCol.set(sc.col, [...(byCol.get(sc.col) || []), sc]); }
+      }));
+      const seqs = [...byCol.values()].map(finalize).sort((x, y) => x.col - y.col);
       let overflow = 0;
       eqs.forEach(e => { formula[e.target] = e.rhs; overflow += e.excN - e.exc.length; e.exc.forEach(x => { bad[x.row + ',' + e.target] = 'expected ' + e.fmt(x.expected); }); });
       seqs.forEach(s => { overflow += s.excN - s.exc.length; s.exc.forEach(x => { bad[x.row + ',' + s.col] = 'expected ' + s.fmt(x.expected); }); });
@@ -488,21 +545,52 @@ const NUMS = (() => {
       }
     });
 
-    const used = new Set(a.used || []), lines = [];
+    const used = new Set(a.used || []), lines = [], isGap = t => /^\?+$/.test(t);
     a.kept.forEach((l, i) => {
-      if (used.has(i) || !/^[\s\d.,;+\-−]+$/.test(l)) return;
+      if (used.has(i) || !/^[\s\d.,;+\-−?]+$/.test(l)) return;
       const parts = l.includes(';') ? l.split(/\s*;\s*/) : l.includes(', ') ? l.split(/,\s+/) : /\s/.test(l.trim()) ? l.trim().split(/\s+/) : l.split(',');
       if (parts.length < MIN_SEQ) return;
-      const all = parts.slice(0, LINE_CAP), parsed = all.map(cell);
-      if (parsed.some(p => !p)) return;
-      const values = parsed.map(p => p.v);
-      let d = 0; for (const p of parsed) if (p.d > d) d = p.d;
-      const col = { j: 0, name: 'Values', d, h: .5 * 10 ** -d }, ctx = { tested: 0 };
-      const found = seqChecks(values, values.map((_, k) => k), col, ctx, null), m = ctx.tested;
-      const seqs = found.filter(c => { c.adj = Math.min(0, c.log10p + Math.log10(Math.max(1, m))); return c.adj <= MAX_LOG10P; });
-      const best = seqs.length ? [pickBest(seqs)] : [];
-      if (parts.length > values.length) best.forEach(b => { b.next = null; });
-      lines.push({ line: i + 1, values, total: parts.length, d, seqs: best, m });
+      const toks = parts.slice(0, LINE_CAP).map(s => s.trim()), hasGap = toks.some(isGap), ctx = { tested: 0, exactTested: 0 };
+      let items = toks, P = null, found = [], d = 0;
+      const idx = () => toks.map((_, k) => k);
+      if (hasGap) {
+        if (toks.length > EXACT_CAP) return;
+        P = SEQ.parse(toks.map(t => isGap(t) ? null : t));
+        if (!P) return;
+        d = P.d;
+        const col = { j: 0, name: 'Values', d, h: .5 * 10 ** -d }, R = SEQ.gapRules(P.x);
+        ctx.exactTested += R.tested;
+        R.rules.forEach(rule => { const sc = scoreRule(rule, P.x, d, col, idx(), null); if (sc) found.push(sc); });
+      } else {
+        const parsed = toks.map(cell);
+        if (parsed.some(p => !p)) return;
+        const values = parsed.map(p => p.v);
+        for (const p of parsed) if (p.d > d) d = p.d;
+        items = values;
+        const col = { j: 0, name: 'Values', d, h: .5 * 10 ** -d };
+        found = seqChecks(values, values.map((_, k) => k), col, ctx, null);
+        P = toks.length <= EXACT_CAP ? SEQ.parse(toks) : null;
+        if (P) {
+          const R = SEQ.rules(P.x, { big: P.big }), xcol = { j: 0, name: 'Values', d: P.d, h: 0 };
+          ctx.exactTested += R.tested;
+          R.rules.forEach(rule => { const sc = scoreRule(rule, P.x, P.d, xcol, idx(), null); if (sc) found.push(sc); });
+          if (P.big) items = toks;
+        }
+      }
+      const m = ctx.tested, mEx = m + ctx.exactTested;
+      const passing = found.filter(c => { const mm = c.exact ? mEx : m; c.adj = Math.min(0, c.log10p + Math.log10(Math.max(1, mm))); if (c.exact) c.mUsed = mm; return c.adj <= MAX_LOG10P; });
+      if (!passing.length && P) {
+        const L = SEQ.library(P.x), mLib = mEx + L.tested, xcol = { j: 0, name: 'Values', d: P.d, h: 0 };
+        L.rules.forEach(rule => {
+          const sc = scoreRule(rule, P.x, P.d, xcol, idx(), null);
+          if (!sc) return;
+          sc.adj = Math.min(0, sc.log10p + Math.log10(mLib));
+          if (sc.adj <= MAX_LOG10P) { sc.mUsed = mLib; passing.push(sc); }
+        });
+      }
+      const best = finalize(passing);
+      if (best && parts.length > items.length) best.next = null;
+      lines.push({ line: i + 1, items, total: parts.length, d: P ? P.d : d, seqs: best ? [best] : [], m: best && best.mUsed ? best.mUsed : m });
     });
 
     const eq = tables.reduce((s, t) => s + (t ? t.eqs.length : 0), 0), seq = tables.reduce((s, t) => s + (t ? t.seqs.length : 0), 0) + lines.reduce((s, l) => s + l.seqs.length, 0);
@@ -513,13 +601,14 @@ const NUMS = (() => {
 
   const excList = (exc, excN, unit) => {
     if (!exc.length) return '';
-    return '<ul class="stats">' + exc.slice(0, SHOW_EXC).map(x => '<li>Row ' + (x.row + 1) + (x.label ? ' ' + esc(x.label) : '') + ': expected ' + x.fmt(x.expected) + ', found ' + x.fmt(x.found) + ' (' + signed(x.found - x.expected, x.dd) + unit + ')</li>').join('') + (excN > SHOW_EXC ? '<li>and ' + (excN - SHOW_EXC) + ' more</li>' : '') + '</ul>';
+    return '<ul class="stats">' + exc.slice(0, SHOW_EXC).map(x => '<li>Row ' + (x.row + 1) + (x.label ? ' ' + esc(x.label) : '') + ': expected ' + x.fmt(x.expected) + ', found ' + x.fmt(x.found) + ' (' + (x.diff !== undefined ? x.diff : signed(x.found - x.expected, x.dd)) + unit + ')</li>').join('') + (excN > SHOW_EXC ? '<li>and ' + (excN - SHOW_EXC) + ' more</li>' : '') + '</ul>';
   };
   const withFmt = c => c.exc.map(x => Object.assign({}, x, { fmt: c.fmt, dd: c.unit ? 0 : c.d }));
+  const rivalText = c => c.rivals && c.rivals.length ? ' · also fits ' + c.rivals.map(r => esc(r.desc) + ' (' + (r.next !== null && r.next !== undefined ? 'next ' + esc(r.fmt(r.next)) + ', ' : '') + 'chance ' + esc(fmtChance(r.adj)) + ')').join('; ') : '';
   const chanceNote = m => '<p class="tstat">Chance: how often a match this good appears when the values are shuffled, corrected for ' + m + ' relations tested.</p>';
   const section = (title, items) => items.length ? '<h4>' + title + '</h4><ul class="stats">' + items.join('') + '</ul>' : '';
   function seqItems(seqs) {
-    return seqs.map(s => '<li><b>' + esc(s.name) + '</b> ' + esc(s.desc) + ' · ' + s.k + ' of ' + s.n + ' · chance ' + esc(fmtChance(s.adj)) + (s.next !== null ? ' · next ' + s.fmt(s.next) : '') + (s.gaps.length ? ' · missing ' + s.gaps.map(s.fmt).join(', ') : '') + excList(withFmt(s), s.excN, s.unit) + '</li>');
+    return seqs.map(s => '<li><b>' + esc(s.name) + '</b> ' + esc(s.desc) + ' · ' + s.k + ' of ' + s.n + ' · chance ' + esc(fmtChance(s.adj)) + (s.next !== null ? ' · next ' + s.fmt(s.next) : '') + (s.gaps.length ? ' · missing ' + s.gaps.map(s.fmt).join(', ') : '') + (s.filled && s.filled.length ? ' · fills in ' + esc(s.filled.map(f => 'position ' + (f.i + 1) + ' = ' + s.fmt(f.v)).join(', ')) : '') + (s.mUsed ? ' · corrected for ' + s.mUsed + ' relations tested' : '') + rivalText(s) + excList(withFmt(s), s.excN, s.unit) + '</li>');
   }
 
   function render(nt) {
@@ -534,7 +623,7 @@ const NUMS = (() => {
   function renderLine(L) {
     const items = seqItems(L.seqs);
     const body = items.length ? '<h4>Sequences</h4>' + chanceNote(L.m) + '<ul class="stats">' + items.join('') + '</ul>' : '<p class="tstat">No step, ratio, polynomial or recurrence pattern passed.</p>';
-    const shown = L.values.slice(0, SHOW_VALUES).join(', ') + (L.total > SHOW_VALUES ? ' … (' + L.total + ' values' + (L.total > L.values.length ? ', first ' + L.values.length + ' analysed' : '') + ')' : '');
+    const shown = L.items.slice(0, SHOW_VALUES).join(', ') + (L.total > SHOW_VALUES ? ' … (' + L.total + ' values' + (L.total > L.items.length ? ', first ' + L.items.length + ' analysed' : '') + ')' : '');
     return '<article class="card"><h3>Number line ' + L.line + '</h3><p class="tstat">' + esc(shown) + '</p>' + body + '</article>';
   }
 
@@ -551,7 +640,7 @@ const NUMS = (() => {
   function findings(nt) {
     const safe = s => /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
     const rows = [['Type', 'Finding', 'Holds in', 'Chance', 'Row', 'Label', 'Expected', 'Found', 'Difference']];
-    const diff = (c, x) => { const v = x.found - x.expected, dd = c.unit ? 0 : c.d; return (v >= 0 ? '+' : '-') + Math.abs(v).toFixed(dd); };
+    const diff = (c, x) => { if (x.diff !== undefined) return x.diff.replace('−', '-'); const v = x.found - x.expected, dd = c.unit ? 0 : c.d; return (v >= 0 ? '+' : '-') + Math.abs(v).toFixed(dd); };
     const excRows = (c, text) => {
       c.exc.forEach(x => rows.push(['Exception', safe(text), '', '', x.row + 1, safe(x.label), c.fmt(x.expected), c.fmt(x.found), diff(c, x)]));
       if (c.excN > c.exc.length) rows.push(['Exception', safe(text), '', '', '', 'and ' + (c.excN - c.exc.length) + ' more', '', '', '']);
@@ -562,6 +651,7 @@ const NUMS = (() => {
       rows.push(['Sequence', safe(text), s.k + ' of ' + s.n, fmtChance(s.adj), '', '', '', '', '']);
       if (s.next !== null) rows.push(['Next value', safe(text), '', '', '', '', s.fmt(s.next), '', '']);
       s.gaps.forEach(g => rows.push(['Missing value', safe(text), '', '', '', '', s.fmt(g), '', '']));
+      (s.filled || []).forEach(f => rows.push(['Filled value', safe(text), '', '', f.i + 1, '', s.fmt(f.v), '', '']));
       excRows(s, text);
     });
     nt.totals.forEach(s => rows.push(['Total', safe(s), '', '', '', '', '', '', '']));
