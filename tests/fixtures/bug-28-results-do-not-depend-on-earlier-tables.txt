@@ -1,0 +1,80 @@
+Id,Qty,Price,Total
+1,8,4.70,37.60
+2,6,8.40,50.40
+3,4,3.10,12.40
+4,2,6.80,13.60
+5,9,1.50,13.50
+6,7,5.20,36.40
+7,5,8.90,44.50
+8,3,3.60,10.80
+
+Order 1 sold 40 units at $1.53 for $61.20
+Order 2 sold 77 units at $2.06 for $158.62
+Order 3 sold 17 units at $2.59 for $44.03
+Order 4 sold 54 units at $3.12 for $168.48
+Order 5 sold 91 units at $3.65 for $332.15
+Order 6 sold 31 units at $4.18 for $129.58
+Order 7 sold 68 units at $4.71 for $320.28
+Order 8 sold 8 units at $5.24 for $41.92
+Order 9 sold 45 units at $5.77 for $259.65
+Order 10 sold 82 units at $6.30 for $516.60
+Order 11 sold 22 units at $6.83 for $150.26
+Order 12 sold 59 units at $7.36 for $434.24
+Order 13 sold 96 units at $7.89 for $757.44
+Order 14 sold 36 units at $8.42 for $303.12
+Order 15 sold 73 units at $8.95 for $653.35
+Order 16 sold 13 units at $9.48 for $123.24
+Order 17 sold 50 units at $1.01 for $50.50
+Order 18 sold 87 units at $1.54 for $133.98
+Order 19 sold 27 units at $2.07 for $55.89
+Order 20 sold 64 units at $2.60 for $166.40
+Order 21 sold 4 units at $3.13 for $12.52
+Order 22 sold 41 units at $3.66 for $150.06
+Order 23 sold 78 units at $4.19 for $326.82
+Order 24 sold 18 units at $4.72 for $84.96
+Order 25 sold 55 units at $5.25 for $288.75
+Order 26 sold 92 units at $5.78 for $531.76
+Order 27 sold 32 units at $6.31 for $201.92
+Order 28 sold 69 units at $6.84 for $471.96
+Order 29 sold 9 units at $7.37 for $66.33
+Order 30 sold 46 units at $7.90 for $363.40
+Order 31 sold 83 units at $8.43 for $699.69
+Order 32 sold 23 units at $8.96 for $206.08
+Order 33 sold 60 units at $9.49 for $569.40
+Order 34 sold 97 units at $1.02 for $98.94
+Order 35 sold 37 units at $1.55 for $57.35
+Order 36 sold 74 units at $2.08 for $153.92
+Order 37 sold 14 units at $2.61 for $36.54
+Order 38 sold 51 units at $3.14 for $160.14
+Order 39 sold 88 units at $3.67 for $322.96
+Order 40 sold 28 units at $4.20 for $117.60
+Order 41 sold 65 units at $4.73 for $307.45
+Order 42 sold 5 units at $5.26 for $26.30
+Order 43 sold 42 units at $5.79 for $243.18
+Order 44 sold 79 units at $6.32 for $499.28
+Order 45 sold 19 units at $6.85 for $130.15
+Order 46 sold 56 units at $7.38 for $413.28
+Order 47 sold 93 units at $7.91 for $735.63
+Order 48 sold 33 units at $8.44 for $278.52
+Order 49 sold 70 units at $8.97 for $627.90
+Order 50 sold 10 units at $9.50 for $95.00
+Order 51 sold 47 units at $1.03 for $48.41
+Order 52 sold 84 units at $1.56 for $131.04
+Order 53 sold 24 units at $2.09 for $50.16
+Order 54 sold 61 units at $2.62 for $159.82
+Order 55 sold 98 units at $3.15 for $308.70
+Order 56 sold 38 units at $3.68 for $139.84
+Order 57 sold 75 units at $4.21 for $315.75
+Order 58 sold 15 units at $4.74 for $71.10
+Order 59 sold 52 units at $5.27 for $274.04
+Order 60 sold 89 units at $5.80 for $516.20
+Order 61 sold 29 units at $6.33 for $183.57
+Order 62 sold 66 units at $6.86 for $452.76
+Order 63 sold 6 units at $7.39 for $44.34
+Order 64 sold 43 units at $7.92 for $340.56
+Order 65 sold 80 units at $8.45 for $676.00
+Order 66 sold 20 units at $8.98 for $179.60
+Order 67 sold 57 units at $9.51 for $542.07
+Order 68 sold 94 units at $1.04 for $97.76
+Order 69 sold 34 units at $1.57 for $53.38
+Order 70 sold 71 units at $2.10 for $149.10

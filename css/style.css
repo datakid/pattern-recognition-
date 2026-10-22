@@ -118,6 +118,7 @@ tbody tr:last-child td{border-bottom:0}
 th{background:var(--bg2);color:var(--fg);font-weight:500;white-space:nowrap;position:sticky;top:0}
 td{color:var(--dim)}
 td.bad{color:var(--fg);text-decoration:underline dotted;text-decoration-thickness:1px;cursor:help}
+.hl{background:color-mix(in srgb,var(--fg) 14%,transparent);outline:1px solid var(--line-hover);outline-offset:-1px}
 th small,td small{display:block;font-size:.68rem;color:var(--dim);font-weight:400;margin-top:2px}
 th small{text-transform:uppercase;letter-spacing:.06em}
 td.to{font-weight:600;white-space:nowrap}td.to-ai,td.to-real{color:var(--fg)}td.to-real{font-style:italic}td.to-proc{color:var(--dim)}

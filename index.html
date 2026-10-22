@@ -58,9 +58,11 @@
 <details class="note"><summary>How it works</summary><ul>
 <li>Recognizes amounts, quantities with units, percentages, dates, times, emails, URLs, phones, IPs, UUIDs, IBANs, card numbers, coordinates, hex colours, versions, IDs, hashtags and mentions.</li>
 <li>Values are checked, not just matched: Luhn for cards, mod-97 for IBANs, real calendar dates, IP octet range, coordinate range. Number-like strings that fail Luhn are not listed as cards.</li>
-<li><b>Number patterns:</b> tests row equations (A + B, A × B, × constant, running totals, averages, share of total), date offsets, column and list sequences (step with missing values, ratio, polynomials up to degree 5, linear recurrences such as Fibonacci or tribonacci, × a then + b, repeating cycles, and known sequences such as primes, factorials and Catalan numbers), a <code>?</code> in a list is filled in when a rule fits, totals and digit habits. Lists and columns are read with exact integer arithmetic, so huge values stay exact. Each relation shows how many rows it holds in and how often shuffled values match as well, corrected for every relation or rule tested. Rows that break a relation are highlighted, and Findings exports them as CSV.</li>
-<li>Groups lines that share the same shape into tables. Also handles delimited tables and repeating key:value records.</li>
-<li>Junk is removed automatically: HTML, dividers, duplicates, boilerplate like "Sent from my…" or "Unsubscribe", and invisible characters. Everything removed is listed with the reason.</li>
+<li><b>Number patterns:</b> tests row equations (A + B, A × B, × constant, ratios, percent change, affine rules such as F = C × 1.8 + 32, running totals, previous row, averages, share of total), date offsets in days, weeks or months, rules that change once or depend on a category, column and list sequences (step with missing values, ratio, polynomials up to degree 5, linear recurrences such as Fibonacci or tribonacci, × a then + b, repeating cycles, interleaved halves, rules on the differences, alternating signs, one change point, and known sequences such as primes, factorials and Catalan numbers), a <code>?</code> in a list is filled in when a rule fits, totals and digit habits. Lists and columns are read with exact integer arithmetic, so huge values stay exact. Each pattern shows how many rows it holds in and how often shuffled values match as well, corrected for everything that was tested.</li>
+<li><b>When there is more than one pattern:</b> the same rule written two ways is shown once. Two clean rules that fit equally well but continue differently are marked Ambiguous and shown side by side, with no next value. Other rules that fit, and relations that follow from the others, stay in collapsed lists. Each pattern has a <b>How this was found</b> block with worked rows and the chance worked out, and each card ends with <b>Tested but not shown</b>.</li>
+<li><b>Text relations:</b> unique columns, formats such as AAA-9999, ID sequences with missing or repeated IDs, one column that determines another (City → Country), names joined into another column, category counts and near-duplicate spellings. Rows that break a pattern are highlighted, hovering a pattern marks its columns and cells, and Findings exports everything as CSV.</li>
+<li>Groups lines that share the same shape into tables. Also handles delimited tables, Markdown tables, aligned columns and repeating key:value records. A column's decimal comma, currency, units and day/month order are detected once and used everywhere.</li>
+<li>Junk is removed automatically: HTML, dividers, repeated lines, boilerplate like "Sent from my…" or "Unsubscribe", and invisible characters. Everything removed is listed with the reason. Adjacent duplicate rows inside a table are kept and reported, not removed.</li>
 <li><b>Writing check</b> (English, 150+ words): marker vocabulary, stock phrases, sentence and paragraph burstiness, informal slips, leftover Markdown and self-disclosure. The score stays between 15 and 85 unless the text discloses itself (for example "as an AI language model"). Reliability is capped at 65%. It is never proof of authorship.</li>
 <li>Rule-based, with no AI model, so prose with unusual formatting stays as plain text.</li></ul></details>
 <textarea id="text-input" placeholder="Paste any messy text: invoices, logs, specs, chats, lists…"></textarea>
@@ -89,13 +91,18 @@
 </main>
 <footer>Veritas Lens · all processing runs locally in your browser</footer>
 <script src="js/util.js"></script>
+<script src="js/cells.js"></script>
 <script src="js/app.js"></script>
 <script src="js/provenance.js"></script>
 <script src="js/jpeg.js"></script>
 <script src="js/writing.js"></script>
 <script src="js/sequence.js"></script>
+<script src="js/relations.js"></script>
+<script src="js/textrel.js"></script>
+<script src="js/patterns.js"></script>
 <script src="js/numbers.js"></script>
 <script src="js/text.js"></script>
+<script src="js/textui.js"></script>
 <script src="js/prnu.js"></script>
 <script src="js/dropdown.js"></script>
 </body>

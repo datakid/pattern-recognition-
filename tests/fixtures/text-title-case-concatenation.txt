@@ -1,0 +1,9 @@
+First,Last,Full
+ann,lee,Ann Lee
+bob,ray,Bob Ray
+cara,fox,Cara Fox
+dan,wu,Dan Wu
+eve,kim,Eve Kim
+finn,ng,Finn Ng
+gus,poe,Gus Poe
+hana,oz,Hana Oz

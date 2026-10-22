@@ -1,0 +1,7 @@
+SERVER LOG
+10.0.0.1 ok 120 ms
+10.0.0.2 ok 130 ms
+note one without values
+another note line
+10.0.0.3 failed 125 ms
+10.0.0.4 failed 135 ms

@@ -1,0 +1,5 @@
+Item,Qty,Amount
+Total,12,30.00
+Apples,3,10.00
+Pears,4,8.50
+Plums,5,11.50

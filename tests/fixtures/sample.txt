@@ -1,0 +1,44 @@
+ORDER SUMMARY
+=================
+Item  Qty  Price
+Organic apples - 3 kg - $4.50
+Whole milk - 2 L - $3.20
+Rice bag - 5 kg - $12.00
+Olive oil - 750 ml - €9.90
+-----------------
+Order ID: INV-2026-0042
+Date: Oct 3, 2026
+Contact: support@freshmart.example
+Delivery: 45 min
+Total = $29.60
+Sent from my iPhone
+Organic apples - 3 kg - $4.50
+
+Name: Alice Chen
+Age: 34
+City: Berlin
+
+Name: Omar Haddad
+Age: 29
+City: Cairo
+
+Server 10.0.0.12 responded in 120 ms at 14:02
+Server 10.0.0.19 responded in 340 ms at 14:05
+Server 10.0.0.23 responded in 135 ms at 14:09
+Server 10.0.0.31 responded in 4100 ms at 14:12
+Pay to IBAN GB82 WEST 1234 5698 7654 32 by 2026-02-30
+Card on file 4111 1111 1111 1111
+Tracking 3f2c9a1e-7b4d-4c8a-9e21-5a6b7c8d9e0f
+<p>Unsubscribe</p>
+
+REGIONAL SALES
+Region	Units	Price	Revenue	Tax	Total
+North	120	4.50	540.00	108.00	648.00
+South	85	6.20	527.00	105.40	632.40
+East	240	2.75	660.00	132.00	792.00
+West	60	12.00	720.00	144.00	864.00
+Central	150	3.80	570.00	114.00	684.00
+Coast	95	7.40	703.00	140.60	843.60
+Valley	310	1.90	589.00	117.80	716.80
+Hills	45	15.50	697.50	139.50	837.00
+Total	1105		5006.50	1001.30	6007.80

@@ -1,0 +1,9 @@
+Item,Qty,Amount
+Apples,3,10.00
+Pears,2,8.50
+Plums,5,12.25
+Subtotal,10,30.75
+Beans,4,6.00
+Peas,6,9.00
+Subtotal,10,15.50
+Total,20,46.25

@@ -1,5 +1,5 @@
 const UTIL = (() => {
-  const MAX_LOG10P = -3, MIN_SUPPORT = .6;
+  const MAX_LOG10P = -3, MIN_SUPPORT = .6; const NEAR_LOG10P = -1;
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const sig = (name, value, dir, w, why, ref) => ({ name, value, dir, w, why, ref });
@@ -27,8 +27,8 @@ const UTIL = (() => {
   const adjust = (log10p, tested) => Math.min(0, log10p + Math.log10(Math.max(1, tested)));
   const normTail = z => { const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2), y = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429)))), e = y * Math.exp(-z * z / 2); return z >= 0 ? e / 2 : 1 - e / 2; };
   const chiP = (x, k) => normTail((Math.cbrt(x / k) - (1 - 2 / (9 * k))) / Math.sqrt(2 / (9 * k)));
-  const median = a => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
-  function mode(arr, key) { const c = new Map(); let best = null, bc = 0; arr.forEach(v => { const k = key(v), n = (c.get(k) || 0) + 1; c.set(k, n); if (n > bc) { bc = n; best = v; } }); return best; }
+  const median = a => { const s = Float64Array.from(a).sort(); return s[s.length >> 1]; };
+  function mode(arr, key) { const c = new Map(); let best = null, bc = 0; arr.forEach(v => { const k = key === String && typeof v === 'bigint' ? v : key(v), n = (c.get(k) || 0) + 1; c.set(k, n); if (n > bc) { bc = n; best = v; } }); return best; }
   function shuffle(a, rand) { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; }
   function shuffleKnown(a, rand) {
     if (!a.includes(null)) return shuffle(a, rand);
@@ -42,7 +42,7 @@ const UTIL = (() => {
   const babs = a => a < 0n ? -a : a;
   const gcd = (a, b) => { a = babs(a); b = babs(b); while (b) { const t = a % b; a = b; b = t; } return a; };
   const lcm = (a, b) => a / gcd(a, b) * b;
-  const Q = (n, d = 1n) => { if (d < 0n) { n = -n; d = -d; } const g = gcd(n, d) || 1n; return { n: n / g, d: d / g }; };
+  const Q = (n, d = 1n) => { if (d === 1n) return { n, d }; if (d < 0n) { n = -n; d = -d; } const g = gcd(n, d) || 1n; return { n: n / g, d: d / g }; };
   const qadd = (a, b) => Q(a.n * b.d + b.n * a.d, a.d * b.d);
   const qsub = (a, b) => Q(a.n * b.d - b.n * a.d, a.d * b.d);
   const qmul = (a, b) => Q(a.n * b.n, a.d * b.d);
@@ -66,5 +66,36 @@ const UTIL = (() => {
 
   const diffsOf = (a, q) => { let cur = a; for (let i = 0; i < q; i++) { const p = cur; cur = new Array(p.length - 1); for (let j = 0; j < cur.length; j++) cur[j] = p[j + 1] - p[j]; } return cur; };
 
-  return { MAX_LOG10P, MIN_SUPPORT, esc, clamp, sig, dayWord, rng, lgamma, log10Tail, adjust, normTail, chiP, median, mode, shuffle, shuffleKnown, babs, gcd, lcm, Q, qadd, qsub, qmul, qdiv, qz, qeq, show, diffsOf };
+  const qcmp = (a, b) => { const d = a.n * b.d - b.n * a.d; return d < 0n ? -1 : d > 0n ? 1 : 0; };
+  const qabs = q => q.n < 0n ? Q(-q.n, q.d) : q;
+  const qround = (q, d) => { const s = pow10(d), m = q.n * s, r = (babs(m) * 2n + q.d) / (2n * q.d); return Q(m < 0n ? -r : r, s); };
+  const qfromScaled = (m, d) => Q(m, pow10(d));
+  const floorDiv = (a, b) => a >= 0n ? a / b : -((-a + b - 1n) / b);
+  const ceilDiv = (a, b) => -floorDiv(-a, b);
+  function simplestDecimal(lo, hi) {
+    if (qcmp(lo, hi) > 0) return null;
+    if (lo.n <= 0n && hi.n >= 0n) return Q(0n);
+    if (hi.n < 0n) { const r = simplestDecimal(Q(-hi.n, hi.d), Q(-lo.n, lo.d)); return r && Q(-r.n, r.d); }
+    const top = hi.n / hi.d, start = top > 0n ? String(top).length : 0;
+    for (let p = start; p >= -40; p--) {
+      const step = p >= 0 ? Q(pow10(p)) : Q(1n, pow10(-p)), k0 = ceilDiv(lo.n * step.d, lo.d * step.n), k1 = floorDiv(hi.n * step.d, hi.d * step.n);
+      if (k0 > k1) continue;
+      const mid = qdiv(qadd(lo, hi), Q(2n));
+      let best = null, bd = null;
+      for (let k = k0; k <= k1 && k - k0 < 20n; k++) {
+        const c = qmul(Q(k), step), d = qabs(qsub(c, mid));
+        if (!best || qcmp(d, bd) < 0) { best = c; bd = d; }
+      }
+      return best;
+    }
+    return null;
+  }
+
+  const hash32 = s => { s = String(s); let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return h >>> 0; };
+  const rngFor = (...parts) => rng(hash32(parts.join('|')));
+
+  const csvSafe = s => { s = String(s ?? ''); return /^[=+\-@\t\r]/.test(s) && !/^[-+]?\d[\d.,]*%?$/.test(s) ? "'" + s : s; };
+  const toCSV = rows => '﻿' + rows.map(r => r.map(c => '"' + csvSafe(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+
+  return { MAX_LOG10P, NEAR_LOG10P, MIN_SUPPORT, esc, clamp, sig, dayWord, rng, lgamma, log10Tail, adjust, normTail, chiP, median, mode, shuffle, shuffleKnown, babs, gcd, lcm, Q, qadd, qsub, qmul, qdiv, qz, qeq, show, diffsOf, qcmp, qabs, qround, qfromScaled, simplestDecimal, hash32, rngFor, csvSafe, toCSV };
 })();

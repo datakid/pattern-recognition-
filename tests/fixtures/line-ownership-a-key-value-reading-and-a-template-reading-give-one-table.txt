@@ -1,0 +1,4 @@
+Load: 20 kg
+Load: 22 kg
+Load: 25 kg
+Load: 28 kg

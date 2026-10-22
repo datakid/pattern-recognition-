@@ -52,8 +52,7 @@ const WRITING = (() => {
     return { L, s, rel: Math.round(rel), label, nw, sents: sents.length };
   }
 
-  function render(src) {
-    const a = analyze(src);
+  function render(src, a = analyze(src)) {
     if (a.gate) return '<article class="card" id="writing-card"><h3>Writing check</h3><p>' + UTIL.esc(a.gate) + '</p></article>';
     const v = /Self/.test(a.label) ? 'tagged' : a.label === 'Leans AI-style' ? 'ai' : /human/.test(a.label) ? 'real' : 'mixed';
     const top = a.L.filter(x => x.w).sort((p, q) => Math.abs(q.w) - Math.abs(p.w)).slice(0, 4);

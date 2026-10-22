@@ -1,0 +1,5 @@
+Name      Qty  Price
+Apples     12   1.50
+Bananas     7   0.75
+Cherries   30   4.20
+Dates       5   9.99

@@ -1,0 +1,4 @@
+No.	Item	Qty
+1.	Apple	3
+2.	Pear	5
+3.	Plum	7

@@ -1,0 +1,7 @@
+Item A costs $1,234,567.89
+Item B costs $4.50
+Item C costs $123.00
+
+Units sold 123456789
+Units left 987654321
+Units lost 111111111
