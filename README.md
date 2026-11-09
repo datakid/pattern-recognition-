@@ -1,5 +1,5 @@
 # Veritas Lens
-On-device pattern recognition in vanilla JS. Nothing leaves the browser.
+On-device pattern recognition in vanilla JS. Files are not uploaded. The page loads Google Fonts.
 
 ## Goal
 Answer one question honestly: what can be measured about this file or text, and how much does each measurement prove? Only objective signals change the score. Subjective or easily forged cues are shown with 0 weight.
